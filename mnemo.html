@@ -248,6 +248,9 @@ function saveKeys() {
   MEM0_KEY = document.getElementById('key-mem0').value.trim();
   USER_ID = document.getElementById('key-userid').value.trim() || 'rene_bartoli';
   if (!ANTHROPIC_KEY || !MEM0_KEY) { alert('Please enter both API keys.'); return; }
+  localStorage.setItem('mnemo_anthropic', ANTHROPIC_KEY);
+  localStorage.setItem('mnemo_mem0', MEM0_KEY);
+  localStorage.setItem('mnemo_userid', USER_ID);
   document.getElementById('setup-overlay').style.display = 'none';
   loadDashboard();
 }
@@ -255,6 +258,7 @@ function saveKeys() {
 function showSetup() {
   document.getElementById('key-anthropic').value = ANTHROPIC_KEY;
   document.getElementById('key-mem0').value = MEM0_KEY;
+  document.getElementById('key-userid').value = USER_ID;
   document.getElementById('setup-overlay').style.display = 'flex';
 }
 
@@ -490,16 +494,28 @@ function checkPw() {
   const val = document.getElementById('pw-input').value;
   if (val === 'Cati1618-') {
     document.getElementById('password-overlay').style.display = 'none';
-    sessionStorage.setItem('mnemo_auth', '1');
+    localStorage.setItem('mnemo_auth', '1');
+    loadSavedKeys();
   } else {
     document.getElementById('pw-error').textContent = 'Incorrect password';
     document.getElementById('pw-input').value = '';
     setTimeout(() => document.getElementById('pw-error').textContent = '', 2000);
   }
 }
+function loadSavedKeys() {
+  const ak = localStorage.getItem('mnemo_anthropic');
+  const mk = localStorage.getItem('mnemo_mem0');
+  const uid = localStorage.getItem('mnemo_userid');
+  if (ak && mk) {
+    ANTHROPIC_KEY = ak; MEM0_KEY = mk; USER_ID = uid || 'rene_bartoli';
+    document.getElementById('setup-overlay').style.display = 'none';
+    loadDashboard();
+  }
+}
 window.addEventListener('DOMContentLoaded', () => {
-  if (sessionStorage.getItem('mnemo_auth') === '1') {
+  if (localStorage.getItem('mnemo_auth') === '1') {
     document.getElementById('password-overlay').style.display = 'none';
+    loadSavedKeys();
   }
 });
 
