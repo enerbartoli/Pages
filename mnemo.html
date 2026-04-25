@@ -560,70 +560,91 @@ function buildGraphFromMemories(mems) {
   const nodeMap = {};
   gEdges = [];
 
-  // Create a node per memory
-  mems.forEach((m, i) => {
+  // Group memories by unique entity — one node per project, person, topic, source
+  mems.forEach(m => {
     const type = m.metadata?.type || 'general';
-    const title = m.metadata?.title || m.metadata?.project_name || m.metadata?.person_name || m.metadata?.filename || ('Memory ' + (i+1));
-    const short = title.length > 22 ? title.substring(0, 21) + '…' : title;
-    const id = m.id || ('mem_' + i);
-    nodeMap[id] = {
-      id, label: short, fullLabel: title,
-      type, source: m.metadata?.source || '',
-      date: m.metadata?.date || '',
-      size: type === 'user_profile' ? 18 : type === 'project_overview' ? 15 : 10,
-      x: 0, y: 0, vx: 0, vy: 0
-    };
+    const pname = m.metadata?.project_name || '';
+    const person = m.metadata?.person_name || '';
+    const source = m.metadata?.source || '';
+    const title = m.metadata?.title || '';
+
+    // Determine the canonical node key and label for this memory
+    let key, label, nodeType, size;
+
+    if (type === 'project_overview' || type === 'project_document') {
+      key = 'proj_' + pname; label = pname; nodeType = 'project_overview'; size = 16;
+    } else if (type === 'person_profile' && person) {
+      key = 'person_' + person; label = person; nodeType = 'person_profile'; size = 13;
+    } else if (type === 'user_profile') {
+      key = 'user_profile'; label = 'Rene Bartoli'; nodeType = 'user_profile'; size = 20;
+    } else if (type === 'summary' && title) {
+      key = 'meet_' + title; label = title; nodeType = 'summary'; size = 11;
+    } else if (type === 'action_items' && title) {
+      key = 'action_' + title; label = title; nodeType = 'action_items'; size = 10;
+    } else if (type === 'project_memory' && pname) {
+      key = 'projmem_' + pname; label = pname + ' (context)'; nodeType = 'project_overview'; size = 13;
+    } else if (source) {
+      key = 'src_' + source + '_' + title.substring(0,20); label = title || source; nodeType = type; size = 10;
+    } else {
+      return; // skip unclassifiable
+    }
+
+    if (!key) return;
+    const short = label.length > 24 ? label.substring(0, 23) + '…' : label;
+
+    if (!nodeMap[key]) {
+      nodeMap[key] = {
+        id: key, label: short, fullLabel: label,
+        type: nodeType, source, pname, person,
+        memCount: 0, size,
+        x: 0, y: 0, vx: 0, vy: 0
+      };
+    }
+    nodeMap[key].memCount++;
+    // Scale size slightly with memory count (more memories = more important node)
+    nodeMap[key].size = Math.min(nodeMap[key].size + Math.log(nodeMap[key].memCount) * 1.5, 24);
   });
 
-  // Create edges between nodes sharing same title or project
-  const byTitle = {}, byProject = {};
-  Object.values(nodeMap).forEach(n => {
-    if (n.fullLabel) {
-      if (!byTitle[n.fullLabel]) byTitle[n.fullLabel] = [];
-      byTitle[n.fullLabel].push(n.id);
+  // Build edges — connect projects to their meeting summaries, people to projects
+  const nodes = Object.values(nodeMap);
+  const profileNode = nodeMap['user_profile'];
+
+  nodes.forEach(n => {
+    // Connect profile to all projects
+    if (n.type === 'project_overview' && profileNode) {
+      gEdges.push({ s: 'user_profile', t: n.id });
     }
-    if (n.source) {
-      if (!byProject[n.source]) byProject[n.source] = [];
-      byProject[n.source].push(n.id);
+    // Connect meeting summaries to matching project
+    if (n.type === 'summary' && n.pname) {
+      const projKey = 'proj_' + n.pname;
+      if (nodeMap[projKey]) gEdges.push({ s: projKey, t: n.id });
+    }
+    // Connect action items to matching project
+    if (n.type === 'action_items' && n.pname) {
+      const projKey = 'proj_' + n.pname;
+      if (nodeMap[projKey]) gEdges.push({ s: projKey, t: n.id });
+    }
+    // Connect people to profile
+    if (n.type === 'person_profile' && profileNode) {
+      gEdges.push({ s: 'user_profile', t: n.id });
     }
   });
 
-  // Link same-title nodes (e.g. summary + transcript + action_items of same meeting)
-  Object.values(byTitle).forEach(ids => {
-    for (let i = 0; i < ids.length - 1; i++) {
-      gEdges.push({ s: ids[i], t: ids[i+1] });
-    }
-  });
-
-  // Limit graph to 60 nodes for performance
-  gNodes = Object.values(nodeMap).slice(0, 60);
+  // Sort by size descending — most important nodes first
+  gNodes = nodes.sort((a, b) => b.size - a.size).slice(0, 80);
 
   // Assign initial positions in a spiral
   const cx = 300, cy = 240;
   gNodes.forEach((n, i) => {
     const angle = (i / gNodes.length) * Math.PI * 2 * 3;
-    const r = 40 + i * 3.5;
+    const r = 50 + i * 4;
     n.x = cx + Math.cos(angle) * r;
     n.y = cy + Math.sin(angle) * r;
   });
 
-  // Filter edges to only include nodes in our set
+  // Filter edges to nodes in our set
   const nodeIds = new Set(gNodes.map(n => n.id));
   gEdges = gEdges.filter(e => nodeIds.has(e.s) && nodeIds.has(e.t));
-
-  // Build legend
-  const types = [...new Set(gNodes.map(n => n.type))];
-  const legend = document.getElementById('graph-legend');
-  if (legend) {
-    legend.innerHTML = types.map(t => {
-      const c = NODE_COLORS[t] || DEFAULT_COLOR;
-      return `<span style="display:flex;align-items:center;gap:5px">
-        <span style="width:8px;height:8px;border-radius:50%;background:${c.fill};display:inline-block"></span>
-        ${(NODE_COLORS[t]?.label || t).toLowerCase()}
-      </span>`;
-    }).join('');
-  }
-
   gBuilt = true;
   initGraphCanvas();
 }
