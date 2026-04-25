@@ -183,6 +183,7 @@
   <div class="tab-bar">
     <button class="tab active" onclick="switchView('chat', this)">Chat</button>
     <button class="tab" onclick="switchView('dashboard', this)">Dashboard</button>
+    <button class="tab" onclick="switchView('graph', this)">Graph</button>
   </div>
   <button class="settings-btn" onclick="showSetup()">⚙</button>
 </div>
@@ -190,17 +191,9 @@
 <div id="main">
   <div class="view active" id="chat-view">
     <div class="chat-messages" id="chat-messages">
-      <div class="welcome" id="welcome-state">
-        <div class="welcome-title">Ask your <span>memory</span></div>
-        <div class="welcome-sub">Your conversations, meetings, and projects are indexed. Ask anything about your past discussions, decisions, or people.</div>
-        <div class="suggestions">
-          <div class="suggestion" onclick="useSuggestion(this)">¿Qué decidimos en las sesiones de H.E.R.O. de abril?</div>
-          <div class="suggestion" onclick="useSuggestion(this)">¿Qué action items tengo pendientes?</div>
-          <div class="suggestion" onclick="useSuggestion(this)">¿Qué sé sobre el progreso de mi tesis doctoral?</div>
-          <div class="suggestion" onclick="useSuggestion(this)">Resume mis conversaciones sobre Serendix</div>
-          <div class="suggestion" onclick="useSuggestion(this)">¿Qué personas clave aparecen en mis reuniones?</div>
-          <div class="suggestion" onclick="useSuggestion(this)">¿Cuál es el estado actual de H.E.R.O.?</div>
-        </div>
+      <div class="welcome" id="welcome-state" style="gap:16px">
+        <div class="welcome-title" style="font-size:1.6rem">Ask your <span>memory</span></div>
+        <div class="welcome-sub" style="font-size:0.8rem;color:var(--text3)">Your conversations, meetings, and projects are indexed.</div>
       </div>
     </div>
     <div class="chat-input-area">
@@ -226,6 +219,23 @@
         </div>
       </div>
     </div>
+  </div>
+
+  <div class="view" id="graph-view" style="flex-direction:column;padding:20px;gap:16px;overflow:hidden">
+    <div style="display:flex;align-items:center;gap:12px;flex-shrink:0">
+      <div style="font-family:'DM Mono',monospace;font-size:0.72rem;color:var(--text3);letter-spacing:0.08em;text-transform:uppercase">Memory graph</div>
+      <div style="flex:1;height:1px;background:var(--border)"></div>
+      <button onclick="buildGraph()" style="background:transparent;border:1px solid var(--border2);color:var(--text2);border-radius:6px;padding:5px 14px;font-family:'Syne',sans-serif;font-size:0.75rem;cursor:pointer">Refresh</button>
+    </div>
+    <div style="flex:1;position:relative;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--surface)">
+      <canvas id="graph-canvas" style="position:absolute;inset:0;width:100%;height:100%"></canvas>
+      <div id="graph-tip" style="position:absolute;display:none;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:8px 12px;font-family:'DM Mono',monospace;font-size:0.72rem;pointer-events:none;max-width:200px;z-index:10;color:var(--text)"></div>
+      <div id="graph-loading" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;color:var(--text3);font-family:'DM Mono',monospace;font-size:0.75rem">
+        <div style="width:20px;height:20px;border:1px solid var(--border2);border-top-color:var(--gold);border-radius:50%;animation:spin 0.8s linear infinite"></div>
+        Loading memories...
+      </div>
+    </div>
+    <div id="graph-legend" style="display:flex;flex-wrap:wrap;gap:12px;flex-shrink:0;font-family:'DM Mono',monospace;font-size:0.7rem;color:var(--text3)"></div>
   </div>
 </div>
 
@@ -390,23 +400,49 @@ function renderDashboard(memories) {
   const byType = {};
   memories.forEach(m => { const t = m.metadata?.type || 'general'; if (!byType[t]) byType[t] = []; byType[t].push(m); });
 
-  const summaries = byType['summary'] || [];
-  const people = byType['person_profile'] || [];
-  const actions = byType['action_items'] || [];
-  const sources = [...new Set(memories.map(m => m.metadata?.source).filter(Boolean))];
+  const summaries  = byType['summary'] || [];
+  const people     = byType['person_profile'] || [];
+  const actions    = byType['action_items'] || [];
+  const projOvw    = byType['project_overview'] || [];
+  const projDocs   = byType['project_document'] || [];
+  const sources    = [...new Set(memories.map(m => m.metadata?.source).filter(Boolean))];
+
+  const docsByProject = {};
+  projDocs.forEach(m => {
+    const pname = m.metadata?.project_name || 'Unknown';
+    docsByProject[pname] = (docsByProject[pname] || 0) + 1;
+  });
+  projOvw.forEach(m => {
+    const pname = m.metadata?.project_name || 'Unknown';
+    if (!(pname in docsByProject)) docsByProject[pname] = 0;
+  });
+  const projectList = Object.entries(docsByProject).sort((a,b) => b[1]-a[1]);
 
   let html = `<div class="dash-card">
     <div class="card-label">Overview</div>
     <div class="stat-row"><span class="stat-label">Total memories</span><span class="stat-value">${memories.length}</span></div>
     <div class="stat-row"><span class="stat-label">Conversations indexed</span><span class="stat-value">${summaries.length}</span></div>
     <div class="stat-row"><span class="stat-label">People indexed</span><span class="stat-value">${people.length}</span></div>
+    <div class="stat-row"><span class="stat-label">Projects in memory</span><span class="stat-value">${projectList.length}</span></div>
     <div class="stat-row"><span class="stat-label">Action items</span><span class="stat-value">${actions.length}</span></div>
     <div class="stat-row"><span class="stat-label">Sources</span><span class="stat-value">${sources.join(', ') || '—'}</span></div>
   </div>`;
 
+  if (projectList.length > 0) {
+    html += `<div class="dash-card"><div class="card-label">Projects</div>
+      ${projectList.map(([name, count]) => `
+        <div class="memory-item" onclick="askAbout('${name.replace(/'/g,"\'").replace(/`/g,"\`")}')">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+            <strong style="color:var(--text);font-size:0.83rem">${name}</strong>
+            <span style="font-family:'DM Mono',monospace;font-size:0.7rem;color:var(--gold);background:var(--bg);padding:2px 8px;border-radius:4px;border:1px solid var(--border);white-space:nowrap;flex-shrink:0">${count} doc${count!==1?'s':''}</span>
+          </div>
+        </div>`).join('')}
+    </div>`;
+  }
+
   if (summaries.length > 0) {
     html += `<div class="dash-card"><div class="card-label">Recent conversations</div>
-      ${summaries.slice(0,6).map(m => `<div class="memory-item" onclick="askAbout('${(m.memory||'').substring(0,50).replace(/'/g,"\\'")}')">
+      ${summaries.slice(0,6).map(m => `<div class="memory-item" onclick="askAbout('${(m.memory||'').substring(0,50).replace(/'/g,"\'")}')">
         ${(m.memory||'').substring(0,120)}...
         <div class="memory-meta">${m.metadata?.date||''} · ${m.metadata?.source||''}</div>
       </div>`).join('')}</div>`;
@@ -414,7 +450,7 @@ function renderDashboard(memories) {
 
   if (people.length > 0) {
     html += `<div class="dash-card"><div class="card-label">People</div>
-      ${people.slice(0,6).map(m => `<div class="memory-item" onclick="askAbout('${(m.metadata?.person_name||'').replace(/'/g,"\\'")}')">
+      ${people.slice(0,6).map(m => `<div class="memory-item" onclick="askAbout('${(m.metadata?.person_name||'').replace(/'/g,"\'")}')">
         <strong style="color:var(--text)">${m.metadata?.person_name||'Unknown'}</strong><br>
         ${(m.memory||'').substring(0,100)}...
         <div class="memory-meta">${m.metadata?.date||''}</div>
@@ -431,7 +467,6 @@ function renderDashboard(memories) {
 
   document.getElementById('dash-grid').innerHTML = html;
 }
-
 function searchDashboard(q) {
   if (!q.trim()) { renderDashboard(allMemories); return; }
   const ql = q.toLowerCase();
@@ -467,6 +502,236 @@ window.addEventListener('DOMContentLoaded', () => {
     document.getElementById('password-overlay').style.display = 'none';
   }
 });
+
+
+// ── Graph view ──────────────────────────────────────────────────────────────
+const NODE_COLORS = {
+  person_profile : { fill:'#3C3489', bg:'#EEEDFE', label:'People' },
+  summary        : { fill:'#0F6E56', bg:'#E1F5EE', label:'Meetings' },
+  project_overview:{ fill:'#993C1D', bg:'#FAECE7', label:'Projects' },
+  action_items   : { fill:'#185FA5', bg:'#E6F1FB', label:'Actions' },
+  user_profile   : { fill:'#854F0B', bg:'#FAEEDA', label:'Profile' },
+  transcript     : { fill:'#3C3489', bg:'#EEEDFE', label:'Transcripts' },
+  project_document:{ fill:'#186A3B', bg:'#E1F5EE', label:'Docs' },
+};
+const DEFAULT_COLOR = { fill:'#545760', bg:'#1a1e26' };
+
+let gNodes=[], gEdges=[], gDragging=null, gHovered=null, gAnimId=null, gBuilt=false;
+
+function buildGraph() {
+  if (!MEM0_KEY) return;
+  const loading = document.getElementById('graph-loading');
+  if (loading) loading.style.display = 'flex';
+  gBuilt = false;
+
+  fetch(`https://api.mem0.ai/v1/memories/?user_id=${USER_ID}&limit=200`, {
+    headers: { 'Authorization': `Token ${MEM0_KEY}` }
+  })
+  .then(r => r.json())
+  .then(data => {
+    const mems = Array.isArray(data) ? data : (data.results || []);
+    buildGraphFromMemories(mems);
+    if (loading) loading.style.display = 'none';
+  })
+  .catch(err => {
+    if (loading) { loading.innerHTML = '<span style="color:#c24a4a">Failed to load — check your Mem0 key</span>'; }
+  });
+}
+
+function buildGraphFromMemories(mems) {
+  const nodeMap = {};
+  gEdges = [];
+
+  // Create a node per memory
+  mems.forEach((m, i) => {
+    const type = m.metadata?.type || 'general';
+    const title = m.metadata?.title || m.metadata?.project_name || m.metadata?.person_name || m.metadata?.filename || ('Memory ' + (i+1));
+    const short = title.length > 22 ? title.substring(0, 21) + '…' : title;
+    const id = m.id || ('mem_' + i);
+    nodeMap[id] = {
+      id, label: short, fullLabel: title,
+      type, source: m.metadata?.source || '',
+      date: m.metadata?.date || '',
+      size: type === 'user_profile' ? 18 : type === 'project_overview' ? 15 : 10,
+      x: 0, y: 0, vx: 0, vy: 0
+    };
+  });
+
+  // Create edges between nodes sharing same title or project
+  const byTitle = {}, byProject = {};
+  Object.values(nodeMap).forEach(n => {
+    if (n.fullLabel) {
+      if (!byTitle[n.fullLabel]) byTitle[n.fullLabel] = [];
+      byTitle[n.fullLabel].push(n.id);
+    }
+    if (n.source) {
+      if (!byProject[n.source]) byProject[n.source] = [];
+      byProject[n.source].push(n.id);
+    }
+  });
+
+  // Link same-title nodes (e.g. summary + transcript + action_items of same meeting)
+  Object.values(byTitle).forEach(ids => {
+    for (let i = 0; i < ids.length - 1; i++) {
+      gEdges.push({ s: ids[i], t: ids[i+1] });
+    }
+  });
+
+  // Limit graph to 60 nodes for performance
+  gNodes = Object.values(nodeMap).slice(0, 60);
+
+  // Assign initial positions in a spiral
+  const cx = 300, cy = 240;
+  gNodes.forEach((n, i) => {
+    const angle = (i / gNodes.length) * Math.PI * 2 * 3;
+    const r = 40 + i * 3.5;
+    n.x = cx + Math.cos(angle) * r;
+    n.y = cy + Math.sin(angle) * r;
+  });
+
+  // Filter edges to only include nodes in our set
+  const nodeIds = new Set(gNodes.map(n => n.id));
+  gEdges = gEdges.filter(e => nodeIds.has(e.s) && nodeIds.has(e.t));
+
+  // Build legend
+  const types = [...new Set(gNodes.map(n => n.type))];
+  const legend = document.getElementById('graph-legend');
+  if (legend) {
+    legend.innerHTML = types.map(t => {
+      const c = NODE_COLORS[t] || DEFAULT_COLOR;
+      return `<span style="display:flex;align-items:center;gap:5px">
+        <span style="width:8px;height:8px;border-radius:50%;background:${c.fill};display:inline-block"></span>
+        ${(NODE_COLORS[t]?.label || t).toLowerCase()}
+      </span>`;
+    }).join('');
+  }
+
+  gBuilt = true;
+  initGraphCanvas();
+}
+
+function initGraphCanvas() {
+  const canvas = document.getElementById('graph-canvas');
+  if (!canvas || !gBuilt) return;
+
+  const dpr = window.devicePixelRatio || 1;
+  let W, H, ctx, simId;
+
+  function resize() {
+    const rect = canvas.parentElement.getBoundingClientRect();
+    W = rect.width; H = rect.height;
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+    ctx = canvas.getContext('2d'); ctx.scale(dpr, dpr);
+  }
+
+  function simulate() {
+    const cx = W / 2, cy = H / 2;
+    gNodes.forEach(a => {
+      if (a === gDragging) return;
+      let fx = (cx - a.x) * 0.012, fy = (cy - a.y) * 0.012;
+      gNodes.forEach(b => {
+        if (a === b) return;
+        const dx = a.x - b.x, dy = a.y - b.y;
+        const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+        const rep = 2200 / dist / dist;
+        fx += dx / dist * rep; fy += dy / dist * rep;
+      });
+      gEdges.forEach(e => {
+        const src = e.s === a.id ? gNodes.find(n => n.id === e.t) : e.t === a.id ? gNodes.find(n => n.id === e.s) : null;
+        if (!src) return;
+        const dx = src.x - a.x, dy = src.y - a.y;
+        const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+        const ideal = 80;
+        fx += dx / dist * (dist - ideal) * 0.035;
+        fy += dy / dist * (dist - ideal) * 0.035;
+      });
+      a.vx = (a.vx + fx) * 0.72; a.vy = (a.vy + fy) * 0.72;
+      a.x = Math.max(a.size + 10, Math.min(W - a.size - 10, a.x + a.vx));
+      a.y = Math.max(a.size + 10, Math.min(H - a.size - 10, a.y + a.vy));
+    });
+  }
+
+  function draw() {
+    if (!ctx) return;
+    ctx.clearRect(0, 0, W, H);
+
+    gEdges.forEach(e => {
+      const a = gNodes.find(n => n.id === e.s), b = gNodes.find(n => n.id === e.t);
+      if (!a || !b) return;
+      const active = gHovered && (gHovered.id === e.s || gHovered.id === e.t);
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+      ctx.strokeStyle = active ? 'rgba(201,168,76,0.4)' : 'rgba(255,255,255,0.06)';
+      ctx.lineWidth = active ? 1.2 : 0.5;
+      ctx.stroke();
+    });
+
+    gNodes.forEach(n => {
+      const c = NODE_COLORS[n.type] || DEFAULT_COLOR;
+      const r = n.size + (gHovered === n ? 3 : 0);
+      ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+      ctx.fillStyle = c.bg;
+      ctx.strokeStyle = gHovered === n ? '#c9a84c' : c.fill;
+      ctx.lineWidth = gHovered === n ? 2 : 1;
+      ctx.fill(); ctx.stroke();
+
+      const fontSize = Math.min(r * 0.65, 10);
+      ctx.font = `${gHovered === n ? 500 : 400} ${fontSize}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.fillStyle = c.fill;
+      ctx.fillText(n.label, n.x, n.y + r + 10);
+    });
+  }
+
+  function loop() { simulate(); draw(); gAnimId = requestAnimationFrame(loop); }
+  if (gAnimId) cancelAnimationFrame(gAnimId);
+
+  function getNode(ex, ey) {
+    const rect = canvas.getBoundingClientRect();
+    const mx = ex - rect.left, my = ey - rect.top;
+    return gNodes.find(n => Math.hypot(n.x - mx, n.y - my) < n.size + 5) || null;
+  }
+
+  const tip = document.getElementById('graph-tip');
+  canvas.onmousemove = e => {
+    const n = getNode(e.clientX, e.clientY);
+    gHovered = n;
+    canvas.style.cursor = n ? 'pointer' : 'default';
+    if (gDragging) {
+      const rect = canvas.getBoundingClientRect();
+      gDragging.x = e.clientX - rect.left; gDragging.y = e.clientY - rect.top;
+      gDragging.vx = 0; gDragging.vy = 0;
+    }
+    if (n && tip) {
+      tip.style.display = 'block';
+      tip.style.left = (e.clientX - canvas.getBoundingClientRect().left + 14) + 'px';
+      tip.style.top = (e.clientY - canvas.getBoundingClientRect().top - 10) + 'px';
+      tip.innerHTML = `<strong style="color:#c9a84c">${n.fullLabel}</strong><br><span style="opacity:0.6">${n.type}${n.date ? ' · ' + n.date : ''}${n.source ? ' · ' + n.source : ''}</span>`;
+    } else if (tip) { tip.style.display = 'none'; }
+  };
+  canvas.onmousedown = e => { gDragging = getNode(e.clientX, e.clientY); };
+  canvas.onmouseup = () => { gDragging = null; };
+  canvas.onmouseleave = () => { if (tip) tip.style.display = 'none'; gHovered = null; gDragging = null; };
+  canvas.onclick = e => {
+    const n = getNode(e.clientX, e.clientY);
+    if (n) {
+      switchView('chat', document.querySelectorAll('.tab')[0]);
+      document.getElementById('chat-input').value = `Tell me about: ${n.fullLabel}`;
+      sendMessage();
+    }
+  };
+
+  resize();
+  loop();
+}
+
+// Override switchView to trigger graph build on first visit
+const _origSwitch = switchView;
+switchView = function(view, btn) {
+  _origSwitch(view, btn);
+  if (view === 'graph' && MEM0_KEY && !gBuilt) buildGraph();
+};
+
 </script>
 </body>
 </html>
