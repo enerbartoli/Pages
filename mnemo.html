@@ -35,6 +35,7 @@
   .model-select { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text2); font-family: inherit; font-size: 11px; padding: 4px 8px; outline: none; cursor: pointer; transition: border-color 0.2s; max-width: 130px; text-overflow: ellipsis; }
   .model-select:focus { border-color: var(--accent); }
   .header-status { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text3); white-space: nowrap; flex-shrink: 0; }
+  .version-badge { font-size: 10px; color: var(--text3); opacity: 0.55; font-family: 'DM Mono', monospace; white-space: nowrap; flex-shrink: 0; user-select: none; letter-spacing: 0.3px; }
   .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text3); flex-shrink: 0; }
   .status-dot.online { background: var(--success); }
 
@@ -211,6 +212,7 @@
     .header-logo { font-size: 14px; }
     .model-select { max-width: 92px; font-size: 10px; }
     .tab { font-size: 9px; padding: 9px 2px; }
+    .version-badge { display: none; }
   }
 
   ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
@@ -242,6 +244,7 @@
         <option value="claude-sonnet-4-6">Sonnet 4.6</option>
         <option value="claude-opus-4-6">Opus 4.6</option>
       </select>
+      <span class="version-badge" id="version-badge">V14.5</span>
       <div class="header-status">
         <div class="status-dot" id="status-dot"></div>
         <span id="status-text">connecting...</span>
@@ -251,7 +254,7 @@
 
   <div class="tabs">
     <div class="tab active" onclick="switchView('chat',this)">💬 Chat</div>
-    <div class="tab" onclick="switchView('dashboard',this)">📊 Dashboard</div>
+    <div class="tab" onclick="switchView('dashboard',this)">📊 Dash</div>
     <div class="tab" onclick="switchView('memories',this)">🧠 Memory</div>
     <div class="tab" onclick="switchView('graph',this)">🕸 Graph</div>
     <div class="tab" onclick="switchView('usage',this)">💰 Usage</div>
@@ -295,7 +298,7 @@
   <div id="dashboard-view" class="view">
     <div class="dash-scroll">
       <div class="section-header">
-        <h2>Dashboard</h2>
+        <h2>Dash</h2>
         <button class="icon-btn" style="height:30px;width:30px;font-size:13px" onclick="loadDashboard()">↻</button>
       </div>
       <div id="dash-content">
@@ -439,7 +442,8 @@ let ttsEnabled=false, isRecording=false, recognition=null;
 let selectedPeriod='today';
 let webSearchEnabled=false;
 let thinkingEnabled=false;
-let gNodes=[], gEdges=[], gDragging=null, gHovered=null, gAnimFrame=null;
+const MNEMO_VERSION='V14.5';
+let gNodes=[], gEdges=[], gDragging=null, gHovered=null, gAnimFrame=null, gSimMaxV=4;
 
 const PRICING = {
   'claude-haiku-4-5-20251001':  { in: 1,  out: 5  },
@@ -1167,16 +1171,18 @@ function buildGraph(mems){
 }
 
 function runSimulation(){
-  if(gAnimFrame)cancelAnimationFrame(gAnimFrame);
-  let steps=0;
-  function tick(){simulate();drawGraph();if(steps++<400)gAnimFrame=requestAnimationFrame(tick);else gAnimFrame=null;}
-  tick();
+  if(gAnimFrame){cancelAnimationFrame(gAnimFrame);gAnimFrame=null;}
+  // Pre-settle synchronously — no animation loop means zero vibration
+  gSimMaxV=4;
+  for(let i=0;i<600;i++) simulate();
+  gNodes.forEach(n=>{n.vx=0;n.vy=0;});
+  drawGraph();
 }
 
 function simulate(){
   const canvas=document.getElementById('graph-canvas'),cx=canvas.width/2,cy=canvas.height/2;
   const W=canvas.width,H=canvas.height;
-  const k=50, damping=0.55, gravity=0.18, MAX_V=4;
+  const k=50, damping=0.3, gravity=0.005;
 
   // Pin René at center — always
   const rene=gNodes.find(n=>n.id==='rene');
@@ -1211,7 +1217,7 @@ function simulate(){
     n.vx+=(cx-n.x)*gravity;n.vy+=(cy-n.y)*gravity;
     // Hard velocity cap — prevents explosions
     const spd=Math.sqrt(n.vx*n.vx+n.vy*n.vy);
-    if(spd>MAX_V){n.vx=n.vx/spd*MAX_V;n.vy=n.vy/spd*MAX_V;}
+    if(spd>gSimMaxV){n.vx=n.vx/spd*gSimMaxV;n.vy=n.vy/spd*gSimMaxV;}
     if(gDragging!==n){n.x+=n.vx;n.y+=n.vy;}
     n.x=Math.max(n.size+16,Math.min(W-n.size-16,n.x));
     n.y=Math.max(n.size+24,Math.min(H-n.size-16,n.y));
