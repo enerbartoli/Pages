@@ -545,10 +545,12 @@ function startRecording() {
 }
 
 function stopRecording() {
+  // Set isRecording=false FIRST so onend knows not to restart
+  isRecording = false;
+  _shouldSend = true; // send whatever was captured
   if (recognition) {
     try { recognition.stop(); } catch(e) {
-      // If stop() throws, clean up manually
-      isRecording = false; recognition = null;
+      recognition = null;
       document.getElementById('mic-btn').classList.remove('recording');
       document.getElementById('voice-overlay').classList.remove('active');
       stopWaveform();
@@ -892,44 +894,93 @@ function buildGraph(mems){
   const canvas=document.getElementById('graph-canvas'),cx=canvas.width/2,cy=canvas.height/2;
   const nodeMap={},edgeSet=new Set(); gEdges=[];
   let nodeCount=0;
+
   function addNode(id,label,type,size=8){
     if(!nodeMap[id]){
-      // Golden angle placement — evenly spread near center
       const angle=nodeCount*2.399;
-      const r=20+Math.random()*30;
-      nodeMap[id]={id,label,type,size,x:cx+Math.cos(angle)*r,y:cy+Math.sin(angle)*r,vx:0,vy:0,fullLabel:label};
+      const r=25+nodeCount*3;
+      nodeMap[id]={id,label,type,size,
+        x:cx+Math.cos(angle)*Math.min(r,90),
+        y:cy+Math.sin(angle)*Math.min(r,90),
+        vx:0,vy:0,fullLabel:label};
       nodeCount++;
     } else { nodeMap[id].size=Math.min(nodeMap[id].size+1,22); }
     return nodeMap[id];
   }
-  function addEdge(from,to){const eid=`${from}->${to}`;if(!edgeSet.has(eid)){edgeSet.add(eid);gEdges.push({from,to});}}
-  addNode('rene','René','person',22);
+  function addEdge(from,to){
+    const eid=from+'->'+to;
+    if(!edgeSet.has(eid)){edgeSet.add(eid);gEdges.push({from,to});}
+  }
+
+  // Rene always pinned at exact center
+  nodeMap['rene']={id:'rene',label:'René',type:'person',size:22,x:cx,y:cy,vx:0,vy:0,fullLabel:'René Bartoli'};
+
+  // Garbage filters — skip memory artifact phrases
+  const GARBAGE=/^(user|the user|user \(|participant|during the|the team|ben goddard|at the|in the|it was|this is|there |we |they |as |its |he |she |la |el |los |las )/i;
+
+  function isValidPerson(name){
+    if(GARBAGE.test(name)) return false;
+    const parts=name.trim().split(' ');
+    if(parts.length<2||parts.length>3) return false;
+    if(name.length>28) return false;
+    // Each part should be a short word, not a phrase fragment
+    if(parts.some(p=>p.length<2)) return false;
+    return true;
+  }
+
   const projectCount={},personCount={},clusterMap={};
+  const personProjects={}; // person -> Set of project names
+
   mems.forEach(m=>{
     const meta=m.metadata||{},text=m.memory||'';
-    if(meta.project_name){const k=meta.project_name.substring(0,30);projectCount[k]=(projectCount[k]||0)+1;}
+    const projName=meta.project_name;
+    if(projName){
+      const k=projName.substring(0,30);
+      projectCount[k]=(projectCount[k]||0)+1;
+    }
     const isMeeting=meta.type==='meeting'||/meeting|reunión|sprint|weekly|daily|sync/i.test(text);
     if(isMeeting){
       const words=text.split(' ').slice(0,3).join(' ').toLowerCase().replace(/[^a-z0-9 ]/g,'').trim();
-      const clKey=(words.replace(/\s+/g,'_').substring(0,25))||'other_meetings';
+      const clKey=(words.replace(/\s+/g,'_').substring(0,25))||'other';
       if(!clusterMap[clKey])clusterMap[clKey]={id:'cl_'+clKey,count:0,label:text.split(' ').slice(0,4).join(' ')};
       clusterMap[clKey].count++;
     }
-    const people=text.match(/([A-Z][a-záéíóúü]+ [A-Z][a-záéíóúü]+)/g)||[];
-    people.forEach(name=>{if(/René|Rene|Bartoli/.test(name))return;personCount[name]=(personCount[name]||0)+1;});
+    const people=(text.match(/\b([A-Z][a-záéíóúü]{2,14} [A-Z][a-záéíóúü]{2,14})\b/g)||[]).filter(isValidPerson);
+    people.forEach(name=>{
+      if(/René|Rene|Bartoli/.test(name)) return;
+      personCount[name]=(personCount[name]||0)+1;
+      if(projName){
+        if(!personProjects[name]) personProjects[name]=new Set();
+        personProjects[name].add(projName.substring(0,30));
+      }
+    });
   });
+
+  // Projects
+  const projNodeMap={};
   Object.entries(projectCount).sort((a,b)=>b[1]-a[1]).slice(0,12).forEach(([name,count])=>{
     const pid='proj_'+name.replace(/\s+/g,'_').toLowerCase().substring(0,20);
-    addNode(pid,name,'project',10+Math.min(count/4,8));addEdge('rene',pid);
+    addNode(pid,name,'project',10+Math.min(count/4,8));
+    addEdge('rene',pid);
+    projNodeMap[name]=pid;
   });
+
+  // People + cross-links to projects
   Object.entries(personCount).sort((a,b)=>b[1]-a[1]).slice(0,15).forEach(([name,count])=>{
     const pid='person_'+name.replace(/\s/g,'_').toLowerCase().substring(0,20);
-    addNode(pid,name,'person',7+Math.min(count/3,6));addEdge('rene',pid);
+    addNode(pid,name,'person',7+Math.min(count/3,6));
+    addEdge('rene',pid);
+    const projs=personProjects[name];
+    if(projs) projs.forEach(pn=>{ const projId=projNodeMap[pn]; if(projId) addEdge(pid,projId); });
   });
-  Object.values(clusterMap).sort((a,b)=>b.count-a.count).slice(0,12).forEach(c=>{
-    const label=c.label+(c.count>1?` (${c.count})`:'');
-    addNode(c.id,label,'cluster',8+Math.min(c.count,10));addEdge('rene',c.id);
+
+  // Meetings
+  Object.values(clusterMap).sort((a,b)=>b.count-a.count).slice(0,10).forEach(c=>{
+    const label=c.label+(c.count>1?' ('+c.count+')':'');
+    addNode(c.id,label,'cluster',8+Math.min(c.count,10));
+    addEdge('rene',c.id);
   });
+
   gNodes=Object.values(nodeMap);
 }
 
