@@ -295,7 +295,7 @@
   <div id="dashboard-view" class="view">
     <div class="dash-scroll">
       <div class="section-header">
-        <h2>Dashboard</h2>
+        <h2>Dash</h2>
         <button class="icon-btn" style="height:30px;width:30px;font-size:13px" onclick="loadDashboard()">↻</button>
       </div>
       <div id="dash-content">
@@ -1168,15 +1168,17 @@ function buildGraph(mems){
 
 function runSimulation(){
   if(gAnimFrame)cancelAnimationFrame(gAnimFrame);
+  // Pre-settle physics invisibly so nodes are near equilibrium on first draw
+  for(let i=0;i<250;i++) simulate();
   let steps=0;
-  function tick(){simulate();drawGraph();if(steps++<400)gAnimFrame=requestAnimationFrame(tick);else gAnimFrame=null;}
+  function tick(){simulate();drawGraph();if(steps++<60)gAnimFrame=requestAnimationFrame(tick);else gAnimFrame=null;}
   tick();
-  // Auto-nudge the largest node slightly to break the initial oscillation
+  // Auto-nudge the largest node to clear any residual oscillation
   setTimeout(()=>{
     if(gDragging) return;
     const largest=gNodes.filter(n=>n.id!=='rene').sort((a,b)=>b.size-a.size)[0];
-    if(largest){gDragging=largest;largest.x+=3;largest.y+=3;setTimeout(()=>{largest.vx=0;largest.vy=0;gDragging=null;},250);}
-  },600);
+    if(largest){gDragging=largest;largest.x+=3;largest.y+=3;setTimeout(()=>{largest.vx=0;largest.vy=0;gDragging=null;},200);}
+  },200);
 }
 
 function simulate(){
