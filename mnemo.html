@@ -439,7 +439,7 @@ let ttsEnabled=false, isRecording=false, recognition=null;
 let selectedPeriod='today';
 let webSearchEnabled=false;
 let thinkingEnabled=false;
-let gNodes=[], gEdges=[], gDragging=null, gHovered=null, gAnimFrame=null;
+let gNodes=[], gEdges=[], gDragging=null, gHovered=null, gAnimFrame=null, gSimMaxV=4;
 
 const PRICING = {
   'claude-haiku-4-5-20251001':  { in: 1,  out: 5  },
@@ -1168,8 +1168,13 @@ function buildGraph(mems){
 
 function runSimulation(){
   if(gAnimFrame)cancelAnimationFrame(gAnimFrame);
-  // Pre-settle: 400 synchronous steps to reach equilibrium before first draw (~10ms)
+  // Pre-settle at full speed to find equilibrium positions
+  gSimMaxV=4;
   for(let i=0;i<400;i++) simulate();
+  // Zero velocities so animation starts from rest
+  gNodes.forEach(n=>{n.vx=0;n.vy=0;});
+  // Animate with near-zero max speed — residual forces cause imperceptible drift only
+  gSimMaxV=0.4;
   let steps=0;
   function tick(){simulate();drawGraph();if(steps++<30)gAnimFrame=requestAnimationFrame(tick);else gAnimFrame=null;}
   tick();
@@ -1178,7 +1183,7 @@ function runSimulation(){
 function simulate(){
   const canvas=document.getElementById('graph-canvas'),cx=canvas.width/2,cy=canvas.height/2;
   const W=canvas.width,H=canvas.height;
-  const k=50, damping=0.3, gravity=0.005, MAX_V=2;
+  const k=50, damping=0.3, gravity=0.005;
 
   // Pin René at center — always
   const rene=gNodes.find(n=>n.id==='rene');
@@ -1213,7 +1218,7 @@ function simulate(){
     n.vx+=(cx-n.x)*gravity;n.vy+=(cy-n.y)*gravity;
     // Hard velocity cap — prevents explosions
     const spd=Math.sqrt(n.vx*n.vx+n.vy*n.vy);
-    if(spd>MAX_V){n.vx=n.vx/spd*MAX_V;n.vy=n.vy/spd*MAX_V;}
+    if(spd>gSimMaxV){n.vx=n.vx/spd*gSimMaxV;n.vy=n.vy/spd*gSimMaxV;}
     if(gDragging!==n){n.x+=n.vx;n.y+=n.vy;}
     n.x=Math.max(n.size+16,Math.min(W-n.size-16,n.x));
     n.y=Math.max(n.size+24,Math.min(H-n.size-16,n.y));
