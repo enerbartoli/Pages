@@ -375,7 +375,24 @@ const PRICING = {
   'claude-sonnet-4-6-thinking': { in: 6,  out: 15 },
   'claude-opus-4-6':            { in: 5,  out: 25 }
 };
-const NODE_COLORS = { person:'#a78bfa', project:'#34d399', cluster:'#60a5fa', decision:'#fb923c', tool:'#f472b6', other:'#9896b0' };
+const NODE_COLORS = {
+  person:  '#a78bfa',   // purple
+  project: '#34d399',   // green
+  cluster: '#60a5fa',   // blue  (meetings)
+  decision:'#fb923c',   // orange
+  tool:    '#f472b6',   // pink
+  other:   '#94a3b8'    // slate
+};
+
+// Distinct fill colors (slightly transparent version)
+const NODE_FILLS = {
+  person:  'rgba(167,139,250,0.18)',
+  project: 'rgba(52,211,153,0.18)',
+  cluster: 'rgba(96,165,250,0.18)',
+  decision:'rgba(251,146,60,0.18)',
+  tool:    'rgba(244,114,182,0.18)',
+  other:   'rgba(148,163,184,0.12)'
+};
 
 let usageLog = [];
 try { usageLog = JSON.parse(localStorage.getItem('mnemo_usage')||'[]'); } catch(e){}
@@ -447,49 +464,96 @@ function switchView(view,tab) {
 }
 
 let voiceLang = 'es-MX';
+let _shouldSend = false;
 
 function setVoiceLang(lang, el) {
   voiceLang = lang;
   document.querySelectorAll('.voice-lang-btn').forEach(b => b.classList.remove('active'));
   el.classList.add('active');
-  // Restart recognition with new lang if already recording
-  if (isRecording && recognition) {
-    try { recognition.stop(); } catch(e) {}
-    setTimeout(() => startRecording(), 150);
+  if (isRecording) {
+    _shouldSend = false;
+    _abortAndRestart();
   }
+}
+
+function _abortAndRestart() {
+  if (recognition) { try { recognition.abort(); } catch(e) {} recognition = null; }
+  isRecording = false;
+  stopWaveform();
+  setTimeout(() => startRecording(), 250);
 }
 
 function toggleVoice() {
   if(!('webkitSpeechRecognition' in window)&&!('SpeechRecognition' in window)){ appendMsg('system','⚠️ Voice not supported.'); return; }
-  isRecording?stopRecording():startRecording();
+  if (isRecording) { _shouldSend = true; stopRecording(); } else { startRecording(); }
 }
 
 function startRecording() {
-  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  recognition=new SR(); recognition.continuous=false; recognition.interimResults=true; recognition.lang=voiceLang;
-  recognition.onstart=()=>{
-    isRecording=true;
+  // Always clean up previous instance first
+  if (recognition) { try { recognition.abort(); } catch(e) {} recognition = null; }
+  _shouldSend = false;
+
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SR();
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.lang = voiceLang;
+
+  recognition.onstart = () => {
+    isRecording = true;
     document.getElementById('mic-btn').classList.add('recording');
     document.getElementById('voice-overlay').classList.add('active');
-    document.getElementById('voice-transcript').textContent='Say something...';
+    document.getElementById('voice-transcript').textContent = voiceLang.startsWith('es') ? 'Di algo...' : 'Say something...';
     startWaveform();
   };
-  recognition.onresult=e=>{
-    const t=Array.from(e.results).map(r=>r[0].transcript).join('');
-    document.getElementById('chat-input').value=t;
-    document.getElementById('voice-transcript').textContent=t;
+
+  recognition.onresult = e => {
+    const t = Array.from(e.results).map(r => r[0].transcript).join('');
+    document.getElementById('chat-input').value = t;
+    document.getElementById('voice-transcript').textContent = t;
+    _shouldSend = true;
   };
-  recognition.onend=()=>{ stopRecording(); const v=document.getElementById('chat-input').value.trim(); if(v) sendMessage(); };
-  recognition.onerror=()=>stopRecording();
-  recognition.start();
+
+  recognition.onend = () => {
+    // If user hasn't pressed stop, restart automatically (handles iOS auto-timeout)
+    if (isRecording) {
+      try { recognition.start(); } catch(e) {}
+      return;
+    }
+    // User pressed stop — finalize
+    const send = _shouldSend;
+    const val = document.getElementById('chat-input').value.trim();
+    recognition = null;
+    _shouldSend = false;
+    document.getElementById('mic-btn').classList.remove('recording');
+    document.getElementById('voice-overlay').classList.remove('active');
+    stopWaveform();
+    if (send && val) sendMessage();
+  };
+
+  recognition.onerror = e => {
+    if (e.error === 'aborted') return;
+    isRecording = false;
+    recognition = null;
+    _shouldSend = false;
+    document.getElementById('mic-btn').classList.remove('recording');
+    document.getElementById('voice-overlay').classList.remove('active');
+    stopWaveform();
+  };
+
+  try { recognition.start(); } catch(e) { recognition = null; }
 }
 
 function stopRecording() {
-  if(recognition){try{recognition.stop();}catch(e){}}
-  isRecording=false;
-  document.getElementById('mic-btn').classList.remove('recording');
-  document.getElementById('voice-overlay').classList.remove('active');
-  stopWaveform();
+  if (recognition) {
+    try { recognition.stop(); } catch(e) {
+      // If stop() throws, clean up manually
+      isRecording = false; recognition = null;
+      document.getElementById('mic-btn').classList.remove('recording');
+      document.getElementById('voice-overlay').classList.remove('active');
+      stopWaveform();
+    }
+  }
 }
 
 async function startWaveform() {
@@ -827,105 +891,78 @@ async function loadGraph(){
 function buildGraph(mems){
   const canvas=document.getElementById('graph-canvas'),cx=canvas.width/2,cy=canvas.height/2;
   const nodeMap={},edgeSet=new Set(); gEdges=[];
-  // Spawn nodes in a tight circle around center
   let nodeCount=0;
   function addNode(id,label,type,size=8){
     if(!nodeMap[id]){
-      const angle=(nodeCount/(Math.max(1,nodeCount)))*Math.PI*2;
-      const r=40+Math.random()*60;
+      // Golden angle placement — evenly spread near center
+      const angle=nodeCount*2.399;
+      const r=20+Math.random()*30;
       nodeMap[id]={id,label,type,size,x:cx+Math.cos(angle)*r,y:cy+Math.sin(angle)*r,vx:0,vy:0,fullLabel:label};
       nodeCount++;
     } else { nodeMap[id].size=Math.min(nodeMap[id].size+1,22); }
     return nodeMap[id];
   }
   function addEdge(from,to){const eid=`${from}->${to}`;if(!edgeSet.has(eid)){edgeSet.add(eid);gEdges.push({from,to});}}
-  addNode('rene','René','person',20);
-
-  // Aggregate: projects, people, meeting clusters — limit to top N per category
-  const projectCount={}, personCount={}, clusterMap={};
-
+  addNode('rene','René','person',22);
+  const projectCount={},personCount={},clusterMap={};
   mems.forEach(m=>{
-    const meta=m.metadata||{}, text=m.memory||'';
-    // Projects
-    if(meta.project_name){
-      const key=meta.project_name.substring(0,30);
-      projectCount[key]=(projectCount[key]||0)+1;
-    }
-    // Meeting clusters — group by first 3 words
+    const meta=m.metadata||{},text=m.memory||'';
+    if(meta.project_name){const k=meta.project_name.substring(0,30);projectCount[k]=(projectCount[k]||0)+1;}
     const isMeeting=meta.type==='meeting'||/meeting|reunión|sprint|weekly|daily|sync/i.test(text);
     if(isMeeting){
       const words=text.split(' ').slice(0,3).join(' ').toLowerCase().replace(/[^a-z0-9 ]/g,'').trim();
-      const clKey=words.replace(/\s+/g,'_').substring(0,25)||'other_meetings';
+      const clKey=(words.replace(/\s+/g,'_').substring(0,25))||'other_meetings';
       if(!clusterMap[clKey])clusterMap[clKey]={id:'cl_'+clKey,count:0,label:text.split(' ').slice(0,4).join(' ')};
       clusterMap[clKey].count++;
     }
-    // People
-    const people=text.match(/\b([A-Z][a-záéíóúü]+ [A-Z][a-záéíóúü]+)\b/g)||[];
-    people.forEach(name=>{
-      if(/René|Rene|Bartoli/.test(name))return;
-      personCount[name]=(personCount[name]||0)+1;
-    });
+    const people=text.match(/([A-Z][a-záéíóúü]+ [A-Z][a-záéíóúü]+)/g)||[];
+    people.forEach(name=>{if(/René|Rene|Bartoli/.test(name))return;personCount[name]=(personCount[name]||0)+1;});
   });
-
-  // Add top 15 projects
-  Object.entries(projectCount).sort((a,b)=>b[1]-a[1]).slice(0,15).forEach(([name,count])=>{
+  Object.entries(projectCount).sort((a,b)=>b[1]-a[1]).slice(0,12).forEach(([name,count])=>{
     const pid='proj_'+name.replace(/\s+/g,'_').toLowerCase().substring(0,20);
-    addNode(pid,name,'project',10+Math.min(count/5,8)); addEdge('rene',pid);
+    addNode(pid,name,'project',10+Math.min(count/4,8));addEdge('rene',pid);
   });
-
-  // Add top 20 people
-  Object.entries(personCount).sort((a,b)=>b[1]-a[1]).slice(0,20).forEach(([name,count])=>{
+  Object.entries(personCount).sort((a,b)=>b[1]-a[1]).slice(0,15).forEach(([name,count])=>{
     const pid='person_'+name.replace(/\s/g,'_').toLowerCase().substring(0,20);
-    addNode(pid,name,'person',7+Math.min(count/3,6)); addEdge('rene',pid);
+    addNode(pid,name,'person',7+Math.min(count/3,6));addEdge('rene',pid);
   });
-
-  // Add top 15 meeting clusters
-  Object.values(clusterMap).sort((a,b)=>b.count-a.count).slice(0,15).forEach(c=>{
+  Object.values(clusterMap).sort((a,b)=>b.count-a.count).slice(0,12).forEach(c=>{
     const label=c.label+(c.count>1?` (${c.count})`:'');
-    addNode(c.id,label,'cluster',8+Math.min(c.count*1.5,12)); addEdge('rene',c.id);
+    addNode(c.id,label,'cluster',8+Math.min(c.count,10));addEdge('rene',c.id);
   });
-
   gNodes=Object.values(nodeMap);
 }
 
 function runSimulation(){
   if(gAnimFrame)cancelAnimationFrame(gAnimFrame);
   let steps=0;
-  function tick(){ simulate(); drawGraph(); if(steps++<300) gAnimFrame=requestAnimationFrame(tick); else gAnimFrame=null; }
+  function tick(){simulate();drawGraph();if(steps++<400)gAnimFrame=requestAnimationFrame(tick);else gAnimFrame=null;}
   tick();
 }
 
 function simulate(){
   const canvas=document.getElementById('graph-canvas'),cx=canvas.width/2,cy=canvas.height/2;
-  const W=canvas.width, H=canvas.height;
-  // Tune: lower k = less spread, higher gravity = stronger pull to center
-  const k=55, damping=0.78, gravity=0.06;
-  gNodes.forEach(n=>{n.vx*=damping; n.vy*=damping;});
-
-  // Repulsion — only between nearby nodes for performance
-  for(let i=0;i<gNodes.length;i++) for(let j=i+1;j<gNodes.length;j++){
+  const W=canvas.width,H=canvas.height;
+  const k=45,damping=0.70,gravity=0.12;
+  gNodes.forEach(n=>{n.vx*=damping;n.vy*=damping;});
+  for(let i=0;i<gNodes.length;i++)for(let j=i+1;j<gNodes.length;j++){
     const a=gNodes[i],b=gNodes[j],dx=b.x-a.x,dy=b.y-a.y,d=Math.sqrt(dx*dx+dy*dy)||1;
-    if(d>300) continue; // skip distant pairs
-    const f=k*k/d;
-    a.vx-=dx/d*f; a.vy-=dy/d*f; b.vx+=dx/d*f; b.vy+=dy/d*f;
+    if(d>180)continue;
+    const f=(k*k)/d*0.5;
+    a.vx-=dx/d*f;a.vy-=dy/d*f;b.vx+=dx/d*f;b.vy+=dy/d*f;
   }
-
-  // Attraction along edges
   const idx={};gNodes.forEach(n=>idx[n.id]=n);
   gEdges.forEach(e=>{
-    const a=idx[e.from],b=idx[e.to]; if(!a||!b)return;
+    const a=idx[e.from],b=idx[e.to];if(!a||!b)return;
     const dx=b.x-a.x,dy=b.y-a.y,d=Math.sqrt(dx*dx+dy*dy)||1;
-    const ideal=k*1.8, f=(d-ideal)/d*0.35;
-    a.vx+=dx*f; a.vy+=dy*f; b.vx-=dx*f; b.vy-=dy*f;
+    const ideal=k*1.5,f=(d-ideal)/d*0.45;
+    a.vx+=dx*f;a.vy+=dy*f;b.vx-=dx*f;b.vy-=dy*f;
   });
-
-  // Strong gravity toward center — keeps everything visible
   gNodes.forEach(n=>{
-    n.vx+=(cx-n.x)*gravity; n.vy+=(cy-n.y)*gravity;
-    if(gDragging!==n){ n.x+=n.vx; n.y+=n.vy; }
-    // Hard clamp inside canvas
-    n.x=Math.max(n.size+16, Math.min(W-n.size-16, n.x));
-    n.y=Math.max(n.size+24, Math.min(H-n.size-16, n.y));
+    n.vx+=(cx-n.x)*gravity;n.vy+=(cy-n.y)*gravity;
+    if(gDragging!==n){n.x+=n.vx;n.y+=n.vy;}
+    n.x=Math.max(n.size+20,Math.min(W-n.size-20,n.x));
+    n.y=Math.max(n.size+28,Math.min(H-n.size-20,n.y));
   });
 }
 function drawGraph(){
@@ -933,25 +970,52 @@ function drawGraph(){
   ctx.fillStyle='#0a0a0f';ctx.fillRect(0,0,canvas.width,canvas.height);
   const idx={};gNodes.forEach(n=>idx[n.id]=n);
 
-  // EDGES — clearly visible lines with color derived from target node
+  // EDGES
   gEdges.forEach(e=>{
     const a=idx[e.from],b=idx[e.to];if(!a||!b)return;
     const color=NODE_COLORS[b.type]||NODE_COLORS.other;
     ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);
-    ctx.strokeStyle=color+'66'; ctx.lineWidth=1.5; ctx.stroke();
+    ctx.strokeStyle=color+'55';ctx.lineWidth=1.5;ctx.stroke();
   });
 
-  // NODES
+  // NODES — distinct filled circles per type
   gNodes.forEach(n=>{
-    const isH=gHovered===n,color=NODE_COLORS[n.type]||NODE_COLORS.other,r=n.size;
-    if(isH){ctx.beginPath();ctx.arc(n.x,n.y,r+9,0,Math.PI*2);ctx.fillStyle=color+'20';ctx.fill();}
-    ctx.shadowColor=color+'77';ctx.shadowBlur=isH?16:7;
-    ctx.beginPath();ctx.arc(n.x,n.y,r,0,Math.PI*2);ctx.fillStyle=isH?color:color+'cc';ctx.fill();
+    const isH=gHovered===n;
+    const stroke=NODE_COLORS[n.type]||NODE_COLORS.other;
+    const fill=NODE_FILLS[n.type]||NODE_FILLS.other;
+    const r=n.size;
+
+    // Glow on hover
+    if(isH){ctx.beginPath();ctx.arc(n.x,n.y,r+10,0,Math.PI*2);ctx.fillStyle=stroke+'22';ctx.fill();}
+
+    // Node body — filled with type color
+    ctx.shadowColor=stroke+'88';ctx.shadowBlur=isH?18:8;
+    ctx.beginPath();ctx.arc(n.x,n.y,r,0,Math.PI*2);
+    ctx.fillStyle=isH?stroke:fill;ctx.fill();
     ctx.shadowBlur=0;
-    ctx.strokeStyle=color;ctx.lineWidth=isH?2:1.5;ctx.beginPath();ctx.arc(n.x,n.y,r,0,Math.PI*2);ctx.stroke();
-    const maxL=16,lbl=n.label.length>maxL?n.label.substring(0,maxL)+'…':n.label;
-    ctx.fillStyle=isH?'#e8e6f0':'#9896b0';ctx.font=`${isH?500:400} ${isH?12:11}px DM Sans,sans-serif`;ctx.textAlign='center';
-    ctx.fillText(lbl,n.x,n.y+r+14);
+
+    // Border
+    ctx.strokeStyle=stroke;ctx.lineWidth=isH?2.5:1.8;
+    ctx.beginPath();ctx.arc(n.x,n.y,r,0,Math.PI*2);ctx.stroke();
+
+    // Label
+    const maxL=15,lbl=n.label.length>maxL?n.label.substring(0,maxL)+'…':n.label;
+    ctx.fillStyle=isH?'#fff':'#c4c2d4';
+    ctx.font=`${isH?600:400} ${isH?13:11}px DM Sans,sans-serif`;
+    ctx.textAlign='center';ctx.fillText(lbl,n.x,n.y+r+15);
+  });
+
+  // LEGEND — bottom left
+  const types=[['person','People'],['project','Projects'],['cluster','Meetings']];
+  let lx=14,ly=canvas.height-14;
+  types.forEach(([type,label])=>{
+    const c=NODE_COLORS[type];
+    ctx.beginPath();ctx.arc(lx+6,ly-4,5,0,Math.PI*2);
+    ctx.fillStyle=NODE_FILLS[type];ctx.fill();
+    ctx.strokeStyle=c;ctx.lineWidth=1.5;ctx.stroke();
+    ctx.fillStyle='#6b6880';ctx.font='10px DM Sans,sans-serif';ctx.textAlign='left';
+    ctx.fillText(label,lx+14,ly);
+    lx+=70;
   });
 }
 function getNode(x,y){for(let i=gNodes.length-1;i>=0;i--){const n=gNodes[i],dx=n.x-x,dy=n.y-y;if(Math.sqrt(dx*dx+dy*dy)<n.size+8)return n;}return null;}
