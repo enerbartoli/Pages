@@ -148,6 +148,45 @@
   .usage-empty { padding: 28px; text-align: center; color: var(--text3); font-size: 13px; }
   .usage-note { font-size: 11px; color: var(--text3); line-height: 1.5; padding: 11px 13px; background: var(--surface); border: 1px solid var(--border); border-radius: 9px; }
 
+  /* DASHBOARD */
+  .dash-scroll { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; padding: 12px 14px; }
+  .dash-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .dash-card { background: var(--surface); border: 1px solid var(--border); border-radius: 11px; padding: 13px; }
+  .dash-card .d-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+  .dash-card .d-value { font-size: 26px; font-weight: 600; font-family: 'DM Mono', monospace; }
+  .dash-card .d-sub { font-size: 10px; color: var(--text3); margin-top: 3px; }
+  .dash-card.wide { grid-column: span 2; }
+  .dash-card.accent-green { border-color: rgba(74,222,128,0.3); background: rgba(74,222,128,0.04); }
+  .dash-card.accent-green .d-value { color: var(--success); }
+  .dash-card.accent-purple { border-color: rgba(124,106,247,0.3); background: rgba(124,106,247,0.04); }
+  .dash-card.accent-purple .d-value { color: var(--accent2); }
+  .dash-card.accent-blue { border-color: rgba(96,165,250,0.3); background: rgba(96,165,250,0.04); }
+  .dash-card.accent-blue .d-value { color: #60a5fa; }
+  .dash-section-title { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; }
+  .project-row { display: flex; align-items: center; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid var(--border); cursor: pointer; gap: 10px; transition: color 0.15s; }
+  .project-row:last-child { border-bottom: none; }
+  .project-row:hover .project-name { color: var(--accent2); }
+  .project-name { font-size: 13px; color: var(--text); flex: 1; }
+  .project-count { font-size: 11px; color: var(--text3); background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 2px 9px; white-space: nowrap; }
+  .person-chip { background: rgba(167,139,250,0.12); border: 1px solid rgba(167,139,250,0.25); border-radius: 20px; color: var(--accent2); font-size: 12px; padding: 4px 10px; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+  .person-chip:hover { background: rgba(167,139,250,0.25); }
+  .chips-wrap { display: flex; flex-wrap: wrap; gap: 6px; }
+  .action-item { display: flex; align-items: flex-start; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--text2); }
+  .action-item:last-child { border-bottom: none; }
+  .action-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--warn); margin-top: 5px; flex-shrink: 0; }
+
+  /* VOICE VISUALIZER */
+  #voice-overlay {
+    position: fixed; inset: 0; background: rgba(10,10,15,0.92); backdrop-filter: blur(8px);
+    z-index: 200; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 28px;
+  }
+  #voice-overlay.active { display: flex; }
+  .voice-label { font-size: 13px; color: var(--text3); letter-spacing: 1px; text-transform: uppercase; }
+  .voice-transcript { font-size: 16px; color: var(--text); max-width: 320px; text-align: center; min-height: 24px; line-height: 1.5; }
+  #voice-canvas { width: 280px; height: 80px; }
+  .voice-stop-btn { background: var(--danger); border: none; border-radius: 50%; width: 56px; height: 56px; color: white; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 0 rgba(248,113,113,0.4); animation: voicePulse 1.5s infinite; }
+  @keyframes voicePulse { 0%,100% { box-shadow: 0 0 0 0 rgba(248,113,113,0.4); } 50% { box-shadow: 0 0 0 14px rgba(248,113,113,0); } }
+
   ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 </style>
 </head>
@@ -186,6 +225,7 @@
 
   <div class="tabs">
     <div class="tab active" onclick="switchView('chat',this)">💬 Chat</div>
+    <div class="tab" onclick="switchView('dashboard',this)">📊 Dashboard</div>
     <div class="tab" onclick="switchView('memories',this)">🧠 Memory</div>
     <div class="tab" onclick="switchView('graph',this)">🕸 Graph</div>
     <div class="tab" onclick="switchView('usage',this)">💰 Usage</div>
@@ -213,6 +253,19 @@
           onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"
           oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,110)+'px'"></textarea>
         <button class="icon-btn send" onclick="sendMessage()">➤</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="dashboard-view" class="view">
+    <div class="dash-scroll">
+      <div class="section-header">
+        <h2>Dashboard</h2>
+        <button class="icon-btn" style="height:30px;width:30px;font-size:13px" onclick="loadDashboard()">↻</button>
+      </div>
+      <div id="dash-content">
+        <div class="empty-state"><div class="icon">📊</div>Loading dashboard...</div>
       </div>
     </div>
   </div>
@@ -295,6 +348,14 @@
   </div>
 </div>
 
+<!-- VOICE OVERLAY -->
+<div id="voice-overlay">
+  <div class="voice-label">Listening...</div>
+  <canvas id="voice-canvas"></canvas>
+  <div class="voice-transcript" id="voice-transcript">Say something...</div>
+  <button class="voice-stop-btn" onclick="stopRecording()">■</button>
+</div>
+
 <script>
 // ── STATE
 let ANTHROPIC_KEY='', MEM0_KEY='', USER_ID='rene_bartoli';
@@ -375,24 +436,110 @@ function switchView(view,tab) {
     if(view==='graph'){ resizeCanvas(); if(gNodes.length===0) loadGraph(); else drawGraph(); }
     if(view==='memories'&&memories.length===0) loadMemories();
     if(view==='usage') renderUsage();
+    if(view==='dashboard') loadDashboard();
   },50);
 }
 
-// ── VOICE
+// ── VOICE with waveform visualizer
+let audioCtx=null, analyser=null, micStream=null, voiceAnimFrame=null;
+
 function toggleVoice() {
   if(!('webkitSpeechRecognition' in window)&&!('SpeechRecognition' in window)){ appendMsg('system','⚠️ Voice not supported.'); return; }
   isRecording?stopRecording():startRecording();
 }
+
 function startRecording() {
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   recognition=new SR(); recognition.continuous=false; recognition.interimResults=true; recognition.lang=navigator.language||'es-US';
-  recognition.onstart=()=>{ isRecording=true; document.getElementById('mic-btn').classList.add('recording'); };
-  recognition.onresult=e=>{ document.getElementById('chat-input').value=Array.from(e.results).map(r=>r[0].transcript).join(''); };
+  recognition.onstart=()=>{
+    isRecording=true;
+    document.getElementById('mic-btn').classList.add('recording');
+    document.getElementById('voice-overlay').classList.add('active');
+    document.getElementById('voice-transcript').textContent='Say something...';
+    startWaveform();
+  };
+  recognition.onresult=e=>{
+    const t=Array.from(e.results).map(r=>r[0].transcript).join('');
+    document.getElementById('chat-input').value=t;
+    document.getElementById('voice-transcript').textContent=t;
+  };
   recognition.onend=()=>{ stopRecording(); const v=document.getElementById('chat-input').value.trim(); if(v) sendMessage(); };
   recognition.onerror=()=>stopRecording();
   recognition.start();
 }
-function stopRecording() { if(recognition){try{recognition.stop();}catch(e){}} isRecording=false; document.getElementById('mic-btn').classList.remove('recording'); }
+
+function stopRecording() {
+  if(recognition){try{recognition.stop();}catch(e){}}
+  isRecording=false;
+  document.getElementById('mic-btn').classList.remove('recording');
+  document.getElementById('voice-overlay').classList.remove('active');
+  stopWaveform();
+}
+
+async function startWaveform() {
+  try {
+    const canvas=document.getElementById('voice-canvas');
+    canvas.width=280; canvas.height=80;
+    const ctx=canvas.getContext('2d');
+    micStream=await navigator.mediaDevices.getUserMedia({audio:true});
+    audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    analyser=audioCtx.createAnalyser();
+    analyser.fftSize=128;
+    const src=audioCtx.createMediaStreamSource(micStream);
+    src.connect(analyser);
+    const data=new Uint8Array(analyser.frequencyBinCount);
+    function draw(){
+      if(!isRecording){ctx.clearRect(0,0,280,80);return;}
+      voiceAnimFrame=requestAnimationFrame(draw);
+      analyser.getByteFrequencyData(data);
+      ctx.clearRect(0,0,280,80);
+      const bars=40, bw=5, gap=2, total=bars*(bw+gap);
+      const startX=(280-total)/2;
+      for(let i=0;i<bars;i++){
+        const val=data[Math.floor(i*data.length/bars)]/255;
+        const h=Math.max(4,val*70);
+        const y=(80-h)/2;
+        const alpha=0.4+val*0.6;
+        ctx.fillStyle=`rgba(124,106,247,${alpha})`;
+        const rx=startX+i*(bw+gap);
+        ctx.beginPath();
+        ctx.roundRect(rx,y,bw,h,2);
+        ctx.fill();
+      }
+    }
+    draw();
+  } catch(e) {
+    // Fallback: animated bars without mic
+    const canvas=document.getElementById('voice-canvas');
+    canvas.width=280; canvas.height=80;
+    const ctx=canvas.getContext('2d');
+    function drawFallback(){
+      if(!isRecording){ctx.clearRect(0,0,280,80);return;}
+      voiceAnimFrame=requestAnimationFrame(drawFallback);
+      ctx.clearRect(0,0,280,80);
+      const bars=40,bw=5,gap=2,total=bars*(bw+gap),startX=(280-total)/2;
+      for(let i=0;i<bars;i++){
+        const t=Date.now()/400;
+        const val=0.2+0.6*Math.abs(Math.sin(t+i*0.4))*Math.abs(Math.sin(t*0.7+i*0.2));
+        const h=Math.max(4,val*60);
+        ctx.fillStyle=`rgba(124,106,247,${0.4+val*0.5})`;
+        ctx.beginPath();
+        ctx.roundRect(startX+i*(bw+gap),(80-h)/2,bw,h,2);
+        ctx.fill();
+      }
+    }
+    drawFallback();
+  }
+}
+
+function stopWaveform() {
+  if(voiceAnimFrame) cancelAnimationFrame(voiceAnimFrame);
+  if(micStream) micStream.getTracks().forEach(t=>t.stop());
+  if(audioCtx) { try{audioCtx.close();}catch(e){} }
+  audioCtx=null; analyser=null; micStream=null;
+  const canvas=document.getElementById('voice-canvas');
+  if(canvas) canvas.getContext('2d').clearRect(0,0,280,80);
+}
 
 // ── TTS
 function toggleTTS() { ttsEnabled=!ttsEnabled; document.getElementById('tts-switch').className='toggle-switch'+(ttsEnabled?' on':''); }
@@ -553,6 +700,103 @@ async function generateSummary(){
 }
 function copySummary(){navigator.clipboard.writeText(document.getElementById('summary-output').textContent).then(()=>{const b=document.getElementById('copy-btn');b.textContent='✅ Copied!';setTimeout(()=>b.textContent='📋 Copy',2000);});}
 
+// ── DASHBOARD
+async function loadDashboard() {
+  const content=document.getElementById('dash-content');
+  content.innerHTML='<div class="empty-state"><div class="icon">⏳</div>Loading...</div>';
+  try {
+    const mems=await fetchMemories(500);
+    renderDashboard(mems);
+  } catch(e){ content.innerHTML=`<div class="empty-state"><div class="icon">⚠️</div>${e.message}</div>`; }
+}
+
+function renderDashboard(mems) {
+  const content=document.getElementById('dash-content');
+  // Count by type
+  const byType={};
+  const projectMap={};
+  const personMap={};
+  const actionItems=[];
+
+  mems.forEach(m=>{
+    const meta=m.metadata||{}, text=m.memory||'';
+    const type=meta.type||'general';
+    byType[type]=(byType[type]||0)+1;
+
+    // Projects
+    if(meta.project_name){
+      const key=meta.project_name;
+      if(!projectMap[key]) projectMap[key]={name:key,count:0};
+      projectMap[key].count++;
+    }
+
+    // People
+    const people=text.match(/\b([A-Z][a-záéíóú]+ [A-Z][a-záéíóú]+)\b/g)||[];
+    people.forEach(name=>{
+      if(/René|Rene|Bartoli/.test(name)) return;
+      personMap[name]=(personMap[name]||0)+1;
+    });
+
+    // Action items
+    if(/action|todo|follow.up|pendiente|tarea|next step/i.test(text) && actionItems.length<6) {
+      actionItems.push(text.substring(0,90)+(text.length>90?'…':''));
+    }
+  });
+
+  const projects=Object.values(projectMap).sort((a,b)=>b.count-a.count).slice(0,12);
+  const topPeople=Object.entries(personMap).sort((a,b)=>b[1]-a[1]).slice(0,16).map(([n])=>n);
+  const totalMeetings=Object.entries(byType).filter(([t])=>/meeting|sprint|weekly/i.test(t)).reduce((s,[,c])=>s+c,0);
+
+  content.innerHTML=`
+    <div class="dash-grid">
+      <div class="dash-card accent-purple">
+        <div class="d-label">Total memories</div>
+        <div class="d-value">${mems.length.toLocaleString()}</div>
+        <div class="d-sub">across all categories</div>
+      </div>
+      <div class="dash-card accent-green">
+        <div class="d-label">Projects tracked</div>
+        <div class="d-value">${projects.length}</div>
+        <div class="d-sub">with memory entries</div>
+      </div>
+      <div class="dash-card accent-blue">
+        <div class="d-label">People mentioned</div>
+        <div class="d-value">${Object.keys(personMap).length}</div>
+        <div class="d-sub">unique names found</div>
+      </div>
+      <div class="dash-card">
+        <div class="d-label">Meetings</div>
+        <div class="d-value">${totalMeetings}</div>
+        <div class="d-sub">meeting memories</div>
+      </div>
+    </div>
+
+    ${projects.length ? `
+    <div class="dash-section-title">Projects & memory entries</div>
+    <div class="dash-card wide">
+      ${projects.map(p=>`
+        <div class="project-row" onclick="askAboutMemory('${esc(p.name)}')">
+          <span class="project-name">${esc(p.name)}</span>
+          <span class="project-count">${p.count} ${p.count===1?'entry':'entries'}</span>
+        </div>`).join('')}
+    </div>` : ''}
+
+    ${topPeople.length ? `
+    <div class="dash-section-title">People in memory</div>
+    <div class="dash-card wide">
+      <div class="chips-wrap">
+        ${topPeople.map(n=>`<span class="person-chip" onclick="askAboutMemory('${esc(n)}')">${esc(n)}</span>`).join('')}
+      </div>
+    </div>` : ''}
+
+    ${actionItems.length ? `
+    <div class="dash-section-title">Action items detected</div>
+    <div class="dash-card wide">
+      ${actionItems.map(a=>`<div class="action-item"><div class="action-dot"></div><span>${esc(a)}</span></div>`).join('')}
+    </div>` : ''}
+  `;
+}
+
 // ── GRAPH
 function resizeCanvas(){const canvas=document.getElementById('graph-canvas'),view=document.getElementById('graph-view');canvas.width=view.clientWidth||window.innerWidth;canvas.height=view.clientHeight||(window.innerHeight-130);}
 async function loadGraph(){
@@ -567,30 +811,106 @@ async function loadGraph(){
 function buildGraph(mems){
   const canvas=document.getElementById('graph-canvas'),cx=canvas.width/2,cy=canvas.height/2;
   const nodeMap={},edgeSet=new Set(); gEdges=[];
-  function addNode(id,label,type,size=8){if(!nodeMap[id])nodeMap[id]={id,label,type,size,x:cx+(Math.random()-0.5)*160,y:cy+(Math.random()-0.5)*160,vx:0,vy:0,fullLabel:label};else nodeMap[id].size=Math.min(nodeMap[id].size+1,20);return nodeMap[id];}
+  // Spawn nodes in a tight circle around center
+  let nodeCount=0;
+  function addNode(id,label,type,size=8){
+    if(!nodeMap[id]){
+      const angle=(nodeCount/(Math.max(1,nodeCount)))*Math.PI*2;
+      const r=40+Math.random()*60;
+      nodeMap[id]={id,label,type,size,x:cx+Math.cos(angle)*r,y:cy+Math.sin(angle)*r,vx:0,vy:0,fullLabel:label};
+      nodeCount++;
+    } else { nodeMap[id].size=Math.min(nodeMap[id].size+1,22); }
+    return nodeMap[id];
+  }
   function addEdge(from,to){const eid=`${from}->${to}`;if(!edgeSet.has(eid)){edgeSet.add(eid);gEdges.push({from,to});}}
-  addNode('rene','René','person',18);
-  const clusterMap={};
+  addNode('rene','René','person',20);
+
+  // Aggregate: projects, people, meeting clusters — limit to top N per category
+  const projectCount={}, personCount={}, clusterMap={};
+
   mems.forEach(m=>{
-    const meta=m.metadata||{},text=m.memory||'';
-    if(meta.project_name){const pid='proj_'+meta.project_name.replace(/\s+/g,'_').toLowerCase().substring(0,20);addNode(pid,meta.project_name,'project',12);addEdge('rene',pid);}
-    const isMeeting=meta.type==='meeting'||/meeting|reunión|sprint|weekly|daily/i.test(text);
-    if(isMeeting){const words=text.split(' ').slice(0,4).join(' ');const clKey=words.toLowerCase().replace(/[^a-z0-9 ]/g,'').trim().replace(/\s+/g,'_').substring(0,30);if(!clusterMap[clKey])clusterMap[clKey]={id:'cl_'+clKey,count:0,label:words};clusterMap[clKey].count++;}
-    const people=text.match(/\b([A-Z][a-záéíóú]+ [A-Z][a-záéíóú]+)\b/g)||[];
-    people.forEach(name=>{if(/René Bartoli|Rene Bartoli/.test(name))return;const pid='person_'+name.replace(/\s/g,'_').toLowerCase().substring(0,20);addNode(pid,name,'person',7);addEdge('rene',pid);});
+    const meta=m.metadata||{}, text=m.memory||'';
+    // Projects
+    if(meta.project_name){
+      const key=meta.project_name.substring(0,30);
+      projectCount[key]=(projectCount[key]||0)+1;
+    }
+    // Meeting clusters — group by first 3 words
+    const isMeeting=meta.type==='meeting'||/meeting|reunión|sprint|weekly|daily|sync/i.test(text);
+    if(isMeeting){
+      const words=text.split(' ').slice(0,3).join(' ').toLowerCase().replace(/[^a-z0-9 ]/g,'').trim();
+      const clKey=words.replace(/\s+/g,'_').substring(0,25)||'other_meetings';
+      if(!clusterMap[clKey])clusterMap[clKey]={id:'cl_'+clKey,count:0,label:text.split(' ').slice(0,4).join(' ')};
+      clusterMap[clKey].count++;
+    }
+    // People
+    const people=text.match(/\b([A-Z][a-záéíóúü]+ [A-Z][a-záéíóúü]+)\b/g)||[];
+    people.forEach(name=>{
+      if(/René|Rene|Bartoli/.test(name))return;
+      personCount[name]=(personCount[name]||0)+1;
+    });
   });
-  Object.values(clusterMap).forEach(c=>{const label=c.label+(c.count>1?` (${c.count})`:'');addNode(c.id,label,'cluster',8+Math.min(c.count*2,10));addEdge('rene',c.id);});
+
+  // Add top 15 projects
+  Object.entries(projectCount).sort((a,b)=>b[1]-a[1]).slice(0,15).forEach(([name,count])=>{
+    const pid='proj_'+name.replace(/\s+/g,'_').toLowerCase().substring(0,20);
+    addNode(pid,name,'project',10+Math.min(count/5,8)); addEdge('rene',pid);
+  });
+
+  // Add top 20 people
+  Object.entries(personCount).sort((a,b)=>b[1]-a[1]).slice(0,20).forEach(([name,count])=>{
+    const pid='person_'+name.replace(/\s/g,'_').toLowerCase().substring(0,20);
+    addNode(pid,name,'person',7+Math.min(count/3,6)); addEdge('rene',pid);
+  });
+
+  // Add top 15 meeting clusters
+  Object.values(clusterMap).sort((a,b)=>b.count-a.count).slice(0,15).forEach(c=>{
+    const label=c.label+(c.count>1?` (${c.count})`:'');
+    addNode(c.id,label,'cluster',8+Math.min(c.count*1.5,12)); addEdge('rene',c.id);
+  });
+
   gNodes=Object.values(nodeMap);
 }
-function runSimulation(){if(gAnimFrame)cancelAnimationFrame(gAnimFrame);let steps=0;function tick(){simulate();drawGraph();if(steps++<260)gAnimFrame=requestAnimationFrame(tick);else gAnimFrame=null;}tick();}
+
+function runSimulation(){
+  if(gAnimFrame)cancelAnimationFrame(gAnimFrame);
+  let steps=0;
+  function tick(){ simulate(); drawGraph(); if(steps++<300) gAnimFrame=requestAnimationFrame(tick); else gAnimFrame=null; }
+  tick();
+}
+
 function simulate(){
   const canvas=document.getElementById('graph-canvas'),cx=canvas.width/2,cy=canvas.height/2;
-  const k=88,damping=0.84,gravity=0.017;
-  gNodes.forEach(n=>{n.vx*=damping;n.vy*=damping;});
-  for(let i=0;i<gNodes.length;i++)for(let j=i+1;j<gNodes.length;j++){const a=gNodes[i],b=gNodes[j],dx=b.x-a.x,dy=b.y-a.y,d=Math.sqrt(dx*dx+dy*dy)||1,f=k*k/d*1.1;a.vx-=dx/d*f;a.vy-=dy/d*f;b.vx+=dx/d*f;b.vy+=dy/d*f;}
+  const W=canvas.width, H=canvas.height;
+  // Tune: lower k = less spread, higher gravity = stronger pull to center
+  const k=55, damping=0.78, gravity=0.06;
+  gNodes.forEach(n=>{n.vx*=damping; n.vy*=damping;});
+
+  // Repulsion — only between nearby nodes for performance
+  for(let i=0;i<gNodes.length;i++) for(let j=i+1;j<gNodes.length;j++){
+    const a=gNodes[i],b=gNodes[j],dx=b.x-a.x,dy=b.y-a.y,d=Math.sqrt(dx*dx+dy*dy)||1;
+    if(d>300) continue; // skip distant pairs
+    const f=k*k/d;
+    a.vx-=dx/d*f; a.vy-=dy/d*f; b.vx+=dx/d*f; b.vy+=dy/d*f;
+  }
+
+  // Attraction along edges
   const idx={};gNodes.forEach(n=>idx[n.id]=n);
-  gEdges.forEach(e=>{const a=idx[e.from],b=idx[e.to];if(!a||!b)return;const dx=b.x-a.x,dy=b.y-a.y,d=Math.sqrt(dx*dx+dy*dy)||1,f=(d-k*1.4)/d*0.27;a.vx+=dx*f;a.vy+=dy*f;b.vx-=dx*f;b.vy-=dy*f;});
-  gNodes.forEach(n=>{n.vx+=(cx-n.x)*gravity;n.vy+=(cy-n.y)*gravity;if(gDragging!==n){n.x+=n.vx;n.y+=n.vy;}const c2=document.getElementById('graph-canvas');n.x=Math.max(n.size+10,Math.min(c2.width-n.size-10,n.x));n.y=Math.max(n.size+20,Math.min(c2.height-n.size-10,n.y));});
+  gEdges.forEach(e=>{
+    const a=idx[e.from],b=idx[e.to]; if(!a||!b)return;
+    const dx=b.x-a.x,dy=b.y-a.y,d=Math.sqrt(dx*dx+dy*dy)||1;
+    const ideal=k*1.8, f=(d-ideal)/d*0.35;
+    a.vx+=dx*f; a.vy+=dy*f; b.vx-=dx*f; b.vy-=dy*f;
+  });
+
+  // Strong gravity toward center — keeps everything visible
+  gNodes.forEach(n=>{
+    n.vx+=(cx-n.x)*gravity; n.vy+=(cy-n.y)*gravity;
+    if(gDragging!==n){ n.x+=n.vx; n.y+=n.vy; }
+    // Hard clamp inside canvas
+    n.x=Math.max(n.size+16, Math.min(W-n.size-16, n.x));
+    n.y=Math.max(n.size+24, Math.min(H-n.size-16, n.y));
+  });
 }
 function drawGraph(){
   const canvas=document.getElementById('graph-canvas'),ctx=canvas.getContext('2d');
