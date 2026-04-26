@@ -2,775 +2,644 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MNEMO — Your Memory Interface</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>MNEMO</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Mono:wght@300;400;500&family=Syne:wght@400;500;700&display=swap');
-
   :root {
-    --bg: #0c0e12;
-    --surface: #13161c;
-    --surface2: #1a1e26;
-    --border: #252a35;
-    --border2: #2e3545;
-    --gold: #c9a84c;
-    --gold2: #e8c97a;
-    --text: #e8e6e0;
-    --text2: #8a8d96;
-    --text3: #545760;
-    --accent: #4a7fa5;
-    --accent2: #6b9fc4;
-    --success: #4a9e7a;
-    --radius: 8px;
+    --bg: #0a0a0f; --surface: #12121a; --surface2: #1a1a26; --border: #2a2a3d;
+    --accent: #7c6af7; --accent2: #a78bfa; --text: #e8e6f0; --text2: #9896b0; --text3: #6b6880;
+    --success: #4ade80; --warn: #fb923c; --danger: #f87171; --radius: 12px;
   }
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', system-ui, sans-serif; background: var(--bg); color: var(--text); height: 100dvh; overflow: hidden; display: flex; flex-direction: column; }
 
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+  /* LOGIN */
+  #login-screen { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 999; flex-direction: column; gap: 28px; }
+  .login-logo { font-size: 48px; font-weight: 600; letter-spacing: -2px; background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .login-card { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 32px; width: min(340px, 90vw); display: flex; flex-direction: column; gap: 13px; }
+  .login-card h2 { font-size: 16px; font-weight: 500; color: var(--text2); text-align: center; }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; }
+  .field input { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: inherit; font-size: 14px; padding: 9px 13px; outline: none; transition: border-color 0.2s; }
+  .field input:focus { border-color: var(--accent); }
+  .btn-primary { background: linear-gradient(135deg, var(--accent), #6d5ce7); border: none; border-radius: 8px; color: white; cursor: pointer; font-family: inherit; font-size: 14px; font-weight: 500; padding: 12px; transition: opacity 0.2s; width: 100%; }
+  .btn-primary:hover { opacity: 0.9; }
+  #login-error { color: var(--danger); font-size: 12px; text-align: center; display: none; }
 
-  body {
-    font-family: 'Syne', sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    height: 100vh;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-  }
+  /* APP */
+  #app { display: none; flex-direction: column; height: 100dvh; }
+  .header { display: flex; align-items: center; justify-content: space-between; padding: 9px 14px; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; gap: 8px; flex-wrap: wrap; }
+  .header-logo { font-size: 19px; font-weight: 600; letter-spacing: -1px; background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; flex-shrink: 0; }
+  .header-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .model-select { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text2); font-family: inherit; font-size: 11px; padding: 4px 8px; outline: none; cursor: pointer; transition: border-color 0.2s; }
+  .model-select:focus { border-color: var(--accent); }
+  .header-status { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text3); }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text3); flex-shrink: 0; }
+  .status-dot.online { background: var(--success); }
 
-  #setup-overlay {
-    position: fixed; inset: 0;
-    background: var(--bg);
-    display: flex; align-items: center; justify-content: center;
-    z-index: 100; padding: 24px;
-  }
-  .setup-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 48px; max-width: 480px; width: 100%;
-  }
-  .setup-logo { font-family: 'Instrument Serif', serif; font-size: 2.5rem; color: var(--gold); margin-bottom: 8px; }
-  .setup-sub { color: var(--text2); font-size: 0.85rem; margin-bottom: 40px; font-family: 'DM Mono', monospace; }
-  .setup-field { margin-bottom: 20px; }
-  .setup-label { display: block; font-size: 0.75rem; color: var(--text2); margin-bottom: 8px; font-family: 'DM Mono', monospace; letter-spacing: 0.08em; text-transform: uppercase; }
-  .setup-input { width: 100%; background: var(--bg); border: 1px solid var(--border2); border-radius: var(--radius); color: var(--text); font-family: 'DM Mono', monospace; font-size: 0.8rem; padding: 12px 16px; outline: none; transition: border-color 0.2s; }
-  .setup-input:focus { border-color: var(--gold); }
-  .setup-btn { width: 100%; background: var(--gold); color: var(--bg); border: none; border-radius: var(--radius); padding: 14px; font-family: 'Syne', sans-serif; font-size: 0.9rem; font-weight: 700; cursor: pointer; margin-top: 8px; transition: background 0.2s; }
-  .setup-btn:hover { background: var(--gold2); }
-  .setup-note { font-family: 'DM Mono', monospace; font-size: 0.72rem; color: var(--text3); margin-top: 20px; line-height: 1.6; text-align: center; }
+  /* TABS */
+  .tabs { display: flex; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; overflow-x: auto; }
+  .tab { flex: 1; padding: 10px 4px; text-align: center; font-size: 10px; font-weight: 500; color: var(--text3); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap; min-width: 55px; }
+  .tab.active { color: var(--accent2); border-bottom-color: var(--accent); }
+  .tab:hover:not(.active) { color: var(--text2); }
 
-  #topbar { display: flex; align-items: center; padding: 0 24px; height: 56px; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; gap: 16px; }
-  .logo { font-family: 'Instrument Serif', serif; font-size: 1.4rem; color: var(--gold); }
-  .logo-dot { color: var(--text3); margin: 0 4px; }
-  .tab-bar { display: flex; gap: 4px; margin-left: auto; }
-  .tab { padding: 6px 16px; border-radius: 6px; border: 1px solid transparent; background: transparent; color: var(--text2); font-family: 'Syne', sans-serif; font-size: 0.8rem; cursor: pointer; transition: all 0.15s; }
-  .tab.active { background: var(--surface2); border-color: var(--border2); color: var(--text); }
-  .settings-btn { width: 32px; height: 32px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--text3); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; margin-left: 8px; }
-  .settings-btn:hover { color: var(--text); }
+  /* VIEWS */
+  .view { display: none; flex: 1; overflow: hidden; flex-direction: column; }
+  .view.active { display: flex; }
 
-  #main { display: flex; flex: 1; overflow: hidden; }
-  .view { display: none !important; flex: 1; overflow: hidden; }
-  .view.active { display: flex !important; }
-  #dashboard-view.active { display: block !important; }
-  #graph-view.active { display: flex !important; flex-direction: column; }
+  /* CHAT */
+  #chat-messages { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; scroll-behavior: smooth; }
+  .msg { max-width: 86%; padding: 11px 15px; border-radius: var(--radius); font-size: 14px; line-height: 1.6; animation: fadeUp 0.2s ease; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  .msg.user { align-self: flex-end; background: linear-gradient(135deg, var(--accent), #6d5ce7); color: white; border-bottom-right-radius: 4px; }
+  .msg.assistant { align-self: flex-start; background: var(--surface2); color: var(--text); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+  .msg.system { align-self: center; background: transparent; color: var(--text3); font-size: 12px; text-align: center; padding: 3px 10px; }
+  .msg-indicator { display: flex; gap: 4px; align-items: center; padding: 11px 15px; }
+  .dot-pulse span { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); display: inline-block; animation: pulse 1.2s infinite ease-in-out; }
+  .dot-pulse span:nth-child(2) { animation-delay: 0.2s; } .dot-pulse span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes pulse { 0%,80%,100% { transform: scale(0.6); opacity: 0.4; } 40% { transform: scale(1); opacity: 1; } }
 
-  #chat-view { flex-direction: column; }
-  .chat-messages { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 20px; scrollbar-width: thin; scrollbar-color: var(--border2) transparent; }
-
-  .message { display: flex; gap: 12px; max-width: 820px; width: 100%; animation: fadeUp 0.3s ease; }
-  @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-  .message.user { align-self: flex-end; flex-direction: row-reverse; }
-  .message.assistant { align-self: flex-start; }
-
-  .msg-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; flex-shrink: 0; font-weight: 700; }
-  .message.user .msg-avatar { background: var(--gold); color: var(--bg); font-family: 'Syne', sans-serif; }
-  .message.assistant .msg-avatar { background: var(--surface2); border: 1px solid var(--border2); color: var(--accent2); font-family: 'DM Mono', monospace; }
-
-  .msg-bubble { padding: 14px 18px; border-radius: 12px; font-size: 0.9rem; line-height: 1.7; max-width: calc(100% - 48px); }
-  .message.user .msg-bubble { background: var(--surface2); border: 1px solid var(--border2); border-top-right-radius: 4px; }
-  .message.assistant .msg-bubble { background: var(--surface); border: 1px solid var(--border); border-top-left-radius: 4px; }
-
-  .msg-sources { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
-  .source-tag { font-family: 'DM Mono', monospace; font-size: 0.68rem; padding: 3px 8px; border-radius: 4px; background: var(--bg); border: 1px solid var(--border); color: var(--text3); }
-
-  .typing-indicator { display: flex; gap: 4px; align-items: center; padding: 8px 0; }
-  .typing-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text3); animation: typingBounce 1.2s infinite; }
-  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
-  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
-  @keyframes typingBounce { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-6px); } }
-
-  .chat-input-area { padding: 16px 24px 20px; border-top: 1px solid var(--border); background: var(--surface); }
-  .chat-input-wrap { display: flex; gap: 12px; align-items: flex-end; background: var(--bg); border: 1px solid var(--border2); border-radius: 12px; padding: 12px 16px; transition: border-color 0.2s; }
-  .chat-input-wrap:focus-within { border-color: var(--gold); }
-  #chat-input { flex: 1; background: transparent; border: none; color: var(--text); font-family: 'Syne', sans-serif; font-size: 0.9rem; outline: none; resize: none; max-height: 120px; line-height: 1.5; }
+  .chat-footer { padding: 9px 14px 12px; background: var(--surface); border-top: 1px solid var(--border); flex-shrink: 0; }
+  .input-row { display: flex; gap: 7px; align-items: flex-end; }
+  #chat-input { flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; color: var(--text); font-family: inherit; font-size: 14px; line-height: 1.5; max-height: 110px; outline: none; padding: 9px 13px; resize: none; transition: border-color 0.2s; overflow-y: auto; }
+  #chat-input:focus { border-color: var(--accent); }
   #chat-input::placeholder { color: var(--text3); }
-  .send-btn { width: 36px; height: 36px; background: var(--gold); border: none; border-radius: 8px; color: var(--bg); cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background 0.15s; font-size: 1rem; }
-  .send-btn:hover { background: var(--gold2); }
-  .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-  .chat-hint { font-family: 'DM Mono', monospace; font-size: 0.7rem; color: var(--text3); text-align: center; margin-top: 10px; }
+  .icon-btn { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; color: var(--text2); cursor: pointer; display: flex; align-items: center; justify-content: center; height: 38px; width: 38px; flex-shrink: 0; transition: all 0.2s; font-size: 17px; }
+  .icon-btn:hover { border-color: var(--accent); color: var(--accent2); }
+  .icon-btn.send { background: var(--accent); border-color: var(--accent); color: white; }
+  .icon-btn.recording { background: var(--danger); border-color: var(--danger); color: white; animation: recPulse 1s infinite; }
+  @keyframes recPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(248,113,113,0.4); } 50% { box-shadow: 0 0 0 7px rgba(248,113,113,0); } }
+  .chat-toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; gap: 6px; flex-wrap: wrap; }
+  .toolbar-left { display: flex; gap: 7px; align-items: center; flex-wrap: wrap; }
+  .tts-toggle { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+  .toggle-switch { width: 30px; height: 17px; background: var(--border); border-radius: 9px; position: relative; transition: background 0.2s; flex-shrink: 0; }
+  .toggle-switch.on { background: var(--accent); }
+  .toggle-switch::after { content: ''; position: absolute; width: 13px; height: 13px; border-radius: 50%; background: white; top: 2px; left: 2px; transition: left 0.2s; }
+  .toggle-switch.on::after { left: 15px; }
+  .summary-btn { background: transparent; border: 1px solid var(--border); border-radius: 8px; color: var(--text3); cursor: pointer; font-family: inherit; font-size: 11px; padding: 3px 9px; display: flex; align-items: center; gap: 3px; transition: all 0.2s; white-space: nowrap; }
+  .summary-btn:hover { border-color: var(--accent); color: var(--accent2); }
 
-  .welcome { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 32px; padding: 40px; text-align: center; }
-  .welcome-title { font-family: 'Instrument Serif', serif; font-size: 2.2rem; line-height: 1.2; }
-  .welcome-title span { color: var(--gold); font-style: italic; }
-  .welcome-sub { font-size: 0.85rem; color: var(--text2); max-width: 400px; line-height: 1.7; }
-  .suggestions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 600px; }
-  .suggestion { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 16px; font-size: 0.8rem; color: var(--text2); cursor: pointer; transition: all 0.15s; text-align: left; }
-  .suggestion:hover { border-color: var(--gold); color: var(--text); }
+  /* MODAL */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(10,10,15,0.85); backdrop-filter: blur(4px); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 14px; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+  .modal-overlay.open { opacity: 1; pointer-events: all; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 22px; width: 100%; max-width: 460px; max-height: 85dvh; display: flex; flex-direction: column; gap: 13px; transform: translateY(14px); transition: transform 0.2s; overflow-y: auto; }
+  .modal-overlay.open .modal { transform: translateY(0); }
+  .modal-header { display: flex; align-items: center; justify-content: space-between; }
+  .modal-header h3 { font-size: 15px; font-weight: 500; }
+  .close-btn { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 18px; padding: 3px; }
+  .period-options { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+  .period-opt { background: var(--surface2); border: 1px solid var(--border); border-radius: 9px; color: var(--text2); cursor: pointer; font-family: inherit; font-size: 13px; padding: 9px 12px; text-align: center; transition: all 0.2s; }
+  .period-opt:hover, .period-opt.selected { border-color: var(--accent); color: var(--accent2); background: rgba(124,106,247,0.1); }
+  .date-range-row { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+  .date-range-row input[type="date"] { background: var(--surface2); border: 1px solid var(--border); border-radius: 7px; color: var(--text); font-family: inherit; font-size: 12px; padding: 7px 10px; outline: none; width: 100%; }
+  .date-range-row input[type="date"]:focus { border-color: var(--accent); }
+  .last-dl-info { font-size: 11px; color: var(--text3); display: flex; align-items: center; gap: 5px; }
+  .summary-output { overflow-y: auto; background: var(--surface2); border: 1px solid var(--border); border-radius: 9px; padding: 13px; font-size: 13px; line-height: 1.7; color: var(--text); min-height: 100px; max-height: 220px; white-space: pre-wrap; display: none; }
+  .summary-output.visible { display: block; }
+  .modal-actions { display: flex; gap: 7px; }
+  .btn-secondary { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text2); cursor: pointer; font-family: inherit; font-size: 13px; padding: 9px 14px; transition: all 0.2s; flex: 1; }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent2); }
 
-  #dashboard-view { overflow-y: auto; padding: 28px; scrollbar-width: thin; scrollbar-color: var(--border2) transparent; }
-  .dash-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; max-width: 1100px; }
-  .dash-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
-  .card-label { font-family: 'DM Mono', monospace; font-size: 0.68rem; color: var(--text3); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
-  .card-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
-  .memory-item { padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 0.83rem; color: var(--text2); line-height: 1.5; cursor: pointer; transition: color 0.15s; }
-  .memory-item:last-child { border-bottom: none; }
-  .memory-item:hover { color: var(--text); }
-  .memory-meta { font-family: 'DM Mono', monospace; font-size: 0.68rem; color: var(--text3); margin-top: 4px; }
-  .stat-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
-  .stat-row:last-child { border-bottom: none; }
-  .stat-label { font-size: 0.83rem; color: var(--text2); }
-  .stat-value { font-family: 'DM Mono', monospace; font-size: 0.83rem; color: var(--gold); }
+  /* SECTION HEADER */
+  .section-header { padding: 13px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+  .section-header h2 { font-size: 14px; font-weight: 500; }
+  .badge { background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; color: var(--text3); font-size: 11px; padding: 2px 9px; }
 
-  .search-bar { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; margin-bottom: 20px; max-width: 1100px; }
-  .search-bar input { flex: 1; background: transparent; border: none; color: var(--text); font-family: 'Syne', sans-serif; font-size: 0.85rem; outline: none; }
-  .search-bar input::placeholder { color: var(--text3); }
-  .loading-bar { display: flex; gap: 6px; align-items: center; color: var(--text3); font-family: 'DM Mono', monospace; font-size: 0.75rem; padding: 16px 0; }
-  .loading-spin { width: 14px; height: 14px; border: 1px solid var(--border2); border-top-color: var(--gold); border-radius: 50%; animation: spin 0.8s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
+  /* MEMORIES */
+  #memories-list { flex: 1; overflow-y: auto; padding: 10px 14px; display: flex; flex-direction: column; gap: 7px; }
+  .memory-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 9px; padding: 11px 13px; cursor: pointer; transition: border-color 0.15s; animation: fadeUp 0.2s ease; }
+  .memory-card:hover { border-color: var(--accent); }
+  .memory-card p { font-size: 13px; line-height: 1.5; color: var(--text); }
+  .memory-meta { font-size: 10px; color: var(--text3); margin-top: 5px; display: flex; gap: 7px; }
+  .memory-type { background: rgba(124,106,247,0.15); color: var(--accent2); border-radius: 4px; padding: 1px 5px; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .empty-state { text-align: center; color: var(--text3); padding: 40px 20px; font-size: 13px; }
+  .empty-state .icon { font-size: 32px; margin-bottom: 10px; }
 
-  @media (max-width: 640px) {
-    #topbar { padding: 0 16px; }
-    .chat-messages, .chat-input-area { padding: 16px; }
-    #dashboard-view { padding: 16px; }
-    .dash-grid { grid-template-columns: 1fr; }
-    .welcome-title { font-size: 1.6rem; }
-    .tab { padding: 5px 10px; font-size: 0.75rem; }
-  }
+  /* GRAPH */
+  #graph-view { position: relative; overflow: hidden; }
+  #graph-canvas { width: 100%; height: 100%; display: block; touch-action: none; }
+  .graph-toolbar { position: absolute; top: 10px; right: 10px; display: flex; flex-direction: column; gap: 5px; }
+  .graph-btn { background: var(--surface); border: 1px solid var(--border); border-radius: 7px; color: var(--text2); cursor: pointer; font-size: 15px; padding: 7px; transition: all 0.2s; }
+  .graph-btn:hover { border-color: var(--accent); color: var(--accent2); }
+  #graph-tooltip { position: absolute; background: var(--surface); border: 1px solid var(--border); border-radius: 7px; color: var(--text); font-size: 12px; line-height: 1.4; max-width: 180px; padding: 7px 10px; pointer-events: none; display: none; z-index: 10; }
+
+  /* USAGE */
+  #usage-view { overflow-y: auto; }
+  .usage-content { padding: 14px; display: flex; flex-direction: column; gap: 14px; }
+  .usage-period-bar { display: flex; gap: 5px; flex-wrap: wrap; }
+  .period-chip { background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; color: var(--text3); cursor: pointer; font-size: 12px; padding: 4px 11px; transition: all 0.2s; }
+  .period-chip.active { background: rgba(124,106,247,0.15); border-color: var(--accent); color: var(--accent2); }
+  .usage-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+  .usage-card { background: var(--surface); border: 1px solid var(--border); border-radius: 11px; padding: 13px; }
+  .usage-card .u-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+  .usage-card .u-value { font-size: 20px; font-weight: 600; color: var(--text); font-family: 'DM Mono', monospace; }
+  .usage-card .u-sub { font-size: 10px; color: var(--text3); margin-top: 3px; }
+  .usage-card.accent { border-color: rgba(124,106,247,0.35); background: rgba(124,106,247,0.05); grid-column: span 2; }
+  .usage-card.accent .u-value { color: var(--accent2); }
+  .usage-table { background: var(--surface); border: 1px solid var(--border); border-radius: 11px; overflow: hidden; }
+  .usage-table-row { display: grid; grid-template-columns: 1fr 72px 72px 64px; gap: 6px; padding: 9px 13px; font-size: 12px; align-items: center; border-bottom: 1px solid var(--border); }
+  .usage-table-row:last-child { border-bottom: none; }
+  .usage-table-row.header { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.4px; }
+  .usage-table-row .model-tag { background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; color: var(--text2); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .u-in { color: var(--success); font-family: 'DM Mono', monospace; text-align: right; }
+  .u-out { color: var(--warn); font-family: 'DM Mono', monospace; text-align: right; }
+  .u-cost { color: var(--text); font-family: 'DM Mono', monospace; text-align: right; }
+  .usage-empty { padding: 28px; text-align: center; color: var(--text3); font-size: 13px; }
+  .usage-note { font-size: 11px; color: var(--text3); line-height: 1.5; padding: 11px 13px; background: var(--surface); border: 1px solid var(--border); border-radius: 9px; }
+
+  ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 </style>
 </head>
 <body>
 
-<div id="password-overlay" style="position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:200;padding:24px;">
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:48px;max-width:380px;width:100%;text-align:center;">
-    <div style="font-family:'Instrument Serif',serif;font-size:2.5rem;color:var(--gold);margin-bottom:8px;">MNEMO</div>
-    <div style="font-family:'DM Mono',monospace;font-size:0.8rem;color:var(--text3);margin-bottom:36px;">// private access</div>
-    <input id="pw-input" type="password" placeholder="Enter password" onkeydown="if(event.key==='Enter')checkPw()"
-      style="width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:0.9rem;padding:12px 16px;outline:none;text-align:center;margin-bottom:12px;">
-    <div id="pw-error" style="color:#c24a4a;font-family:'DM Mono',monospace;font-size:0.75rem;height:20px;margin-bottom:8px;"></div>
-    <button onclick="checkPw()" style="width:100%;background:var(--gold);color:var(--bg);border:none;border-radius:8px;padding:13px;font-family:'Syne',sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer;">Access →</button>
-  </div>
-</div>
-<div id="setup-overlay">
-  <div class="setup-card">
-    <div class="setup-logo">MNEMO</div>
-    <div class="setup-sub">// your long-term memory interface</div>
-    <div class="setup-field">
-      <label class="setup-label">Anthropic API Key</label>
-      <input class="setup-input" id="key-anthropic" type="password" placeholder="sk-ant-...">
-    </div>
-    <div class="setup-field">
-      <label class="setup-label">Mem0 API Key</label>
-      <input class="setup-input" id="key-mem0" type="password" placeholder="m0-...">
-    </div>
-    <div class="setup-field">
-      <label class="setup-label">Your Mem0 User ID</label>
-      <input class="setup-input" id="key-userid" type="text" value="rene_bartoli">
-    </div>
-    <button class="setup-btn" onclick="saveKeys()">Enter MNEMO →</button>
-    <div class="setup-note">Keys stored only in this browser session · Never shared with third parties</div>
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-logo">MNEMO</div>
+  <div class="login-card">
+    <h2>Welcome back</h2>
+    <div class="field"><label>Password</label><input type="password" id="login-pass" placeholder="Enter password"></div>
+    <div class="field"><label>Anthropic API Key</label><input type="password" id="login-anthropic" placeholder="sk-ant-..."></div>
+    <div class="field"><label>Mem0 API Key</label><input type="password" id="login-mem0" placeholder="m0-..."></div>
+    <div class="field"><label>Mem0 User ID</label><input type="text" id="login-userid" value="rene_bartoli"></div>
+    <div id="login-error">Incorrect password</div>
+    <button class="btn-primary" onclick="doLogin()">Enter MNEMO</button>
   </div>
 </div>
 
-<div id="topbar">
-  <div class="logo">MNEMO<span class="logo-dot">·</span></div>
-  <div class="tab-bar">
-    <button class="tab active" onclick="switchView('chat', this)">Chat</button>
-    <button class="tab" onclick="switchView('dashboard', this)">Dashboard</button>
-    <button class="tab" onclick="switchView('graph', this)">Graph</button>
-  </div>
-  <button class="settings-btn" onclick="showSetup()">⚙</button>
-</div>
-
-<div id="main">
-  <div class="view active" id="chat-view">
-    <div class="chat-messages" id="chat-messages">
-      <div class="welcome" id="welcome-state" style="gap:16px">
-        <div class="welcome-title" style="font-size:1.6rem">Ask your <span>memory</span></div>
-        <div class="welcome-sub" style="font-size:0.8rem;color:var(--text3)">Your conversations, meetings, and projects are indexed.</div>
+<!-- APP -->
+<div id="app">
+  <div class="header">
+    <div class="header-logo">MNEMO</div>
+    <div class="header-right">
+      <select class="model-select" id="model-select" onchange="onModelChange()">
+        <option value="claude-sonnet-4-6">Sonnet 4.6</option>
+        <option value="claude-sonnet-4-6-thinking">Sonnet 4.6 + Thinking</option>
+        <option value="claude-opus-4-6">Opus 4.6</option>
+      </select>
+      <div class="header-status">
+        <div class="status-dot" id="status-dot"></div>
+        <span id="status-text">connecting...</span>
       </div>
-    </div>
-    <div class="chat-input-area">
-      <div class="chat-input-wrap">
-        <textarea id="chat-input" placeholder="Ask your memory anything..." rows="1"
-          onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
-        <button class="send-btn" id="send-btn" onclick="sendMessage()">↑</button>
-      </div>
-      <div class="chat-hint">Searches your memories · Powered by Mem0 + Claude</div>
     </div>
   </div>
 
-  <div class="view" id="dashboard-view">
-    <div style="max-width:1100px;width:100%">
-      <div class="search-bar">
-        <span style="color:var(--text3)">⊙</span>
-        <input type="text" placeholder="Search memories..." id="dash-search" oninput="searchDashboard(this.value)">
-      </div>
-      <div class="dash-grid" id="dash-grid">
-        <div class="dash-card" style="grid-column:1/-1">
-          <div class="card-label">Loading</div>
-          <div class="loading-bar"><div class="loading-spin"></div>Connecting to Mem0...</div>
+  <div class="tabs">
+    <div class="tab active" onclick="switchView('chat',this)">💬 Chat</div>
+    <div class="tab" onclick="switchView('memories',this)">🧠 Memory</div>
+    <div class="tab" onclick="switchView('graph',this)">🕸 Graph</div>
+    <div class="tab" onclick="switchView('usage',this)">💰 Usage</div>
+  </div>
+
+  <!-- CHAT -->
+  <div id="chat-view" class="view active">
+    <div id="chat-messages">
+      <div class="msg system">MNEMO ready — memory + web, combined.</div>
+    </div>
+    <div class="chat-footer">
+      <div class="chat-toolbar">
+        <div class="toolbar-left">
+          <div class="tts-toggle" onclick="toggleTTS()" title="Voice responses">
+            <div class="toggle-switch" id="tts-switch"></div>
+            <span style="font-size:13px">🔊</span>
+          </div>
+          <button class="summary-btn" onclick="openSummary()">📋 Export</button>
         </div>
+        <span style="font-size:10px;color:var(--text3)" id="web-indicator"></span>
+      </div>
+      <div class="input-row">
+        <button class="icon-btn" id="mic-btn" onclick="toggleVoice()" title="Voice input">🎙</button>
+        <textarea id="chat-input" placeholder="Ask anything..." rows="1"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"
+          oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,110)+'px'"></textarea>
+        <button class="icon-btn send" onclick="sendMessage()">➤</button>
       </div>
     </div>
   </div>
 
-  <div class="view" id="graph-view" style="flex-direction:column;padding:20px;gap:16px;overflow:hidden">
-    <div style="display:flex;align-items:center;gap:12px;flex-shrink:0">
-      <div style="font-family:'DM Mono',monospace;font-size:0.72rem;color:var(--text3);letter-spacing:0.08em;text-transform:uppercase">Memory graph</div>
-      <div style="flex:1;height:1px;background:var(--border)"></div>
-      <button onclick="buildGraph()" style="background:transparent;border:1px solid var(--border2);color:var(--text2);border-radius:6px;padding:5px 14px;font-family:'Syne',sans-serif;font-size:0.75rem;cursor:pointer">Refresh</button>
-    </div>
-    <div style="flex:1;position:relative;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--surface)">
-      <canvas id="graph-canvas" style="position:absolute;inset:0;width:100%;height:100%"></canvas>
-      <div id="graph-tip" style="position:absolute;display:none;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:8px 12px;font-family:'DM Mono',monospace;font-size:0.72rem;pointer-events:none;max-width:200px;z-index:10;color:var(--text)"></div>
-      <div id="graph-loading" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;color:var(--text3);font-family:'DM Mono',monospace;font-size:0.75rem">
-        <div style="width:20px;height:20px;border:1px solid var(--border2);border-top-color:var(--gold);border-radius:50%;animation:spin 0.8s linear infinite"></div>
-        Loading memories...
+  <!-- MEMORIES -->
+  <div id="memories-view" class="view">
+    <div class="section-header">
+      <h2>Memory</h2>
+      <div style="display:flex;gap:7px;align-items:center">
+        <div class="badge" id="mem-count">—</div>
+        <button class="icon-btn" style="height:30px;width:30px;font-size:13px" onclick="loadMemories()">↻</button>
       </div>
     </div>
-    <div id="graph-legend" style="display:flex;flex-wrap:wrap;gap:12px;flex-shrink:0;font-family:'DM Mono',monospace;font-size:0.7rem;color:var(--text3)"></div>
+    <div id="memories-list"><div class="empty-state"><div class="icon">🧠</div>Loading...</div></div>
+  </div>
+
+  <!-- GRAPH -->
+  <div id="graph-view" class="view">
+    <canvas id="graph-canvas"></canvas>
+    <div class="graph-toolbar">
+      <button class="graph-btn" onclick="resetGraph()" title="Reset">⟳</button>
+      <button class="graph-btn" onclick="loadGraph()" title="Reload">↻</button>
+    </div>
+    <div id="graph-tooltip"></div>
+  </div>
+
+  <!-- USAGE -->
+  <div id="usage-view" class="view">
+    <div class="usage-content">
+      <div class="section-header" style="padding:0;border:none">
+        <h2>API Usage</h2>
+        <button class="icon-btn" style="height:30px;width:30px;font-size:13px" onclick="renderUsage()">↻</button>
+      </div>
+      <div class="usage-period-bar">
+        <div class="period-chip active" onclick="setUsagePeriod('session',this)">This session</div>
+        <div class="period-chip" onclick="setUsagePeriod('today',this)">Today</div>
+        <div class="period-chip" onclick="setUsagePeriod('7d',this)">7 days</div>
+        <div class="period-chip" onclick="setUsagePeriod('all',this)">All time</div>
+      </div>
+      <div class="usage-cards">
+        <div class="usage-card"><div class="u-label">Input tokens</div><div class="u-value" id="u-in">—</div><div class="u-sub">tokens sent</div></div>
+        <div class="usage-card"><div class="u-label">Output tokens</div><div class="u-value" id="u-out">—</div><div class="u-sub">tokens received</div></div>
+        <div class="usage-card accent"><div class="u-label">Estimated cost</div><div class="u-value" id="u-cost">$0.0000</div><div class="u-sub" id="u-cost-sub">Based on current session</div></div>
+      </div>
+      <div class="usage-table" id="usage-table">
+        <div class="usage-table-row header"><span>Model</span><span style="text-align:right">In</span><span style="text-align:right">Out</span><span style="text-align:right">Cost</span></div>
+        <div class="usage-empty" id="usage-empty">No usage yet.<br>Start chatting to see data here.</div>
+      </div>
+      <div class="usage-note">
+        💡 Costs estimated from official Anthropic pricing:<br>
+        <strong>Sonnet 4.6:</strong> $3/$15 · <strong>Sonnet + Thinking:</strong> $6/$15 · <strong>Opus 4.6:</strong> $5/$25 per MTok input/output.<br>
+        For exact billing → <strong>console.anthropic.com → Settings → Billing</strong>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SUMMARY MODAL -->
+<div class="modal-overlay" id="summary-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>📋 Export Summary</h3>
+      <button class="close-btn" onclick="closeSummary()">✕</button>
+    </div>
+    <div class="last-dl-info"><span>⏱</span><span id="last-dl-text">No previous export</span></div>
+    <div class="period-options">
+      <div class="period-opt selected" onclick="selectPeriod('today',this)">Today</div>
+      <div class="period-opt" onclick="selectPeriod('7d',this)">Last 7 days</div>
+      <div class="period-opt" onclick="selectPeriod('30d',this)">Last 30 days</div>
+      <div class="period-opt" onclick="selectPeriod('since',this)">Since last export</div>
+    </div>
+    <div class="date-range-row" id="custom-range" style="display:none">
+      <input type="date" id="date-from"><input type="date" id="date-to">
+    </div>
+    <div class="summary-output" id="summary-output"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="generateSummary()">✨ Generate</button>
+      <button class="btn-secondary" id="copy-btn" style="display:none" onclick="copySummary()">📋 Copy</button>
+    </div>
   </div>
 </div>
 
 <script>
-let ANTHROPIC_KEY = '', MEM0_KEY = '', USER_ID = 'rene_bartoli';
-let messages = [], isLoading = false, allMemories = [];
+// ── STATE
+let ANTHROPIC_KEY='', MEM0_KEY='', USER_ID='rene_bartoli';
+let chatMessages=[], memories=[], selectedModel='claude-sonnet-4-6', usagePeriod='session';
+let ttsEnabled=false, isRecording=false, recognition=null;
+let selectedPeriod='today';
+let gNodes=[], gEdges=[], gDragging=null, gHovered=null, gAnimFrame=null;
 
-function saveKeys() {
-  ANTHROPIC_KEY = document.getElementById('key-anthropic').value.trim();
-  MEM0_KEY = document.getElementById('key-mem0').value.trim();
-  USER_ID = document.getElementById('key-userid').value.trim() || 'rene_bartoli';
-  if (!ANTHROPIC_KEY || !MEM0_KEY) { alert('Please enter both API keys.'); return; }
-  localStorage.setItem('mnemo_anthropic', ANTHROPIC_KEY);
-  localStorage.setItem('mnemo_mem0', MEM0_KEY);
-  localStorage.setItem('mnemo_userid', USER_ID);
-  document.getElementById('setup-overlay').style.display = 'none';
-  loadDashboard();
+const PRICING = {
+  'claude-sonnet-4-6':          { in: 3,  out: 15 },
+  'claude-sonnet-4-6-thinking': { in: 6,  out: 15 },
+  'claude-opus-4-6':            { in: 5,  out: 25 }
+};
+const NODE_COLORS = { person:'#a78bfa', project:'#34d399', cluster:'#60a5fa', decision:'#fb923c', tool:'#f472b6', other:'#9896b0' };
+
+let usageLog = [];
+try { usageLog = JSON.parse(localStorage.getItem('mnemo_usage')||'[]'); } catch(e){}
+window._sessionStart = Date.now();
+
+function logUsage(model, inTok, outTok) {
+  const p = PRICING[model]||PRICING['claude-sonnet-4-6'];
+  usageLog.push({ ts: Date.now(), model, inputTokens: inTok, outputTokens: outTok, cost: (inTok/1e6*p.in)+(outTok/1e6*p.out) });
+  try { localStorage.setItem('mnemo_usage', JSON.stringify(usageLog.slice(-500))); } catch(e){}
+  if (document.getElementById('usage-view').classList.contains('active')) renderUsage();
 }
 
-function showSetup() {
-  document.getElementById('key-anthropic').value = ANTHROPIC_KEY;
-  document.getElementById('key-mem0').value = MEM0_KEY;
-  document.getElementById('key-userid').value = USER_ID;
-  document.getElementById('setup-overlay').style.display = 'flex';
+// ── LOGIN
+function doLogin() {
+  const pass=document.getElementById('login-pass').value;
+  const ak=document.getElementById('login-anthropic').value.trim();
+  const mk=document.getElementById('login-mem0').value.trim();
+  const uid=document.getElementById('login-userid').value.trim();
+  if(pass!=='Cati1618-'){ document.getElementById('login-error').style.display='block'; return; }
+  if(!ak||!mk){ alert('Please enter API keys.'); return; }
+  ANTHROPIC_KEY=ak; MEM0_KEY=mk; USER_ID=uid||'rene_bartoli';
+  sessionStorage.setItem('mnemo_ak',ak); sessionStorage.setItem('mnemo_mk',mk); sessionStorage.setItem('mnemo_uid',USER_ID);
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('app').style.display='flex';
+  init();
 }
 
-function switchView(view, btn) {
-  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.getElementById(view + '-view').classList.add('active');
-  btn.classList.add('active');
-  if (view === 'dashboard') loadDashboard();
-}
-
-async function searchMemories(query) {
-  const res = await fetch('https://api.mem0.ai/v1/memories/search/', {
-    method: 'POST',
-    headers: { 'Authorization': `Token ${MEM0_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query, user_id: USER_ID, limit: 8 })
-  });
-  if (!res.ok) throw new Error(`Mem0 error: ${res.status}`);
-  return await res.json();
-}
-
-async function listMemories() {
-  const res = await fetch(`https://api.mem0.ai/v1/memories/?user_id=${USER_ID}&limit=50`, {
-    headers: { 'Authorization': `Token ${MEM0_KEY}` }
-  });
-  if (!res.ok) throw new Error(`Mem0 error: ${res.status}`);
-  return await res.json();
-}
-
-async function askClaude(userMessage, memories) {
-  const ctx = memories.length > 0
-    ? memories.map(m => `[${m.metadata?.source||'memory'} | ${m.metadata?.date||''}] ${m.memory}`).join('\n\n')
-    : 'No specific memories found.';
-
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': ANTHROPIC_KEY,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true'
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-5',
-      max_tokens: 1024,
-      system: `You are MNEMO, Rene Bartoli's personal memory assistant. Use the memory context to answer accurately. Reference dates and sources when available. Respond in the same language as the question.\n\n--- MEMORIES ---\n${ctx}\n--- END ---`,
-      messages: [
-        ...messages.slice(-6).map(m => ({ role: m.role, content: m.content })),
-        { role: 'user', content: userMessage }
-      ]
-    })
-  });
-  if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || 'Claude error'); }
-  return (await res.json()).content[0].text;
-}
-
-function useSuggestion(el) {
-  document.getElementById('chat-input').value = el.textContent;
-  sendMessage();
-}
-
-function handleKey(e) {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
-}
-
-function autoResize(el) {
-  el.style.height = 'auto';
-  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
-}
-
-async function sendMessage() {
-  const input = document.getElementById('chat-input');
-  const text = input.value.trim();
-  if (!text || isLoading) return;
-
-  const welcome = document.getElementById('welcome-state');
-  if (welcome) welcome.remove();
-
-  input.value = ''; input.style.height = 'auto';
-  isLoading = true;
-  document.getElementById('send-btn').disabled = true;
-
-  appendMessage('user', text);
-  messages.push({ role: 'user', content: text });
-
-  const typingId = appendTyping();
-
-  try {
-    const mems = await searchMemories(text);
-    const reply = await askClaude(text, mems);
-    document.getElementById(typingId)?.remove();
-    const sources = [...new Set(mems.map(m => m.metadata?.source).filter(Boolean))];
-    appendMessage('assistant', reply, sources);
-    messages.push({ role: 'assistant', content: reply });
-  } catch (err) {
-    document.getElementById(typingId)?.remove();
-    appendMessage('assistant', `⚠ ${err.message}`);
-  }
-
-  isLoading = false;
-  document.getElementById('send-btn').disabled = false;
-}
-
-function appendMessage(role, text, sources = []) {
-  const c = document.getElementById('chat-messages');
-  const d = document.createElement('div');
-  d.className = `message ${role}`;
-  const tags = sources.map(s => `<span class="source-tag">${s}</span>`).join('');
-  d.innerHTML = `<div class="msg-avatar">${role === 'user' ? 'RB' : 'M'}</div>
-    <div class="msg-bubble">${text.replace(/\n/g,'<br>')}
-    ${tags ? `<div class="msg-sources">${tags}</div>` : ''}</div>`;
-  c.appendChild(d);
-  c.scrollTop = c.scrollHeight;
-}
-
-function appendTyping() {
-  const c = document.getElementById('chat-messages');
-  const id = 'typing-' + Date.now();
-  const d = document.createElement('div');
-  d.id = id; d.className = 'message assistant';
-  d.innerHTML = `<div class="msg-avatar">M</div>
-    <div class="msg-bubble"><div class="typing-indicator">
-    <div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>
-    </div></div>`;
-  c.appendChild(d); c.scrollTop = c.scrollHeight;
-  return id;
-}
-
-async function loadDashboard() {
-  if (!MEM0_KEY || allMemories.length > 0) { if (allMemories.length > 0) renderDashboard(allMemories); return; }
-  try {
-    const data = await listMemories();
-    allMemories = Array.isArray(data) ? data : (data.results || []);
-    renderDashboard(allMemories);
-  } catch (err) {
-    document.getElementById('dash-grid').innerHTML = `<div class="dash-card" style="grid-column:1/-1">
-      <div class="card-label">Error</div>
-      <div style="color:#c24a4a;font-size:0.83rem">${err.message}</div></div>`;
-  }
-}
-
-function renderDashboard(memories) {
-  const byType = {};
-  memories.forEach(m => { const t = m.metadata?.type || 'general'; if (!byType[t]) byType[t] = []; byType[t].push(m); });
-
-  const summaries  = byType['summary'] || [];
-  const people     = byType['person_profile'] || [];
-  const actions    = byType['action_items'] || [];
-  const projOvw    = byType['project_overview'] || [];
-  const projDocs   = byType['project_document'] || [];
-  const sources    = [...new Set(memories.map(m => m.metadata?.source).filter(Boolean))];
-
-  const docsByProject = {};
-  projDocs.forEach(m => {
-    const pname = m.metadata?.project_name || 'Unknown';
-    docsByProject[pname] = (docsByProject[pname] || 0) + 1;
-  });
-  projOvw.forEach(m => {
-    const pname = m.metadata?.project_name || 'Unknown';
-    if (!(pname in docsByProject)) docsByProject[pname] = 0;
-  });
-  const projectList = Object.entries(docsByProject).sort((a,b) => b[1]-a[1]);
-
-  let html = `<div class="dash-card">
-    <div class="card-label">Overview</div>
-    <div class="stat-row"><span class="stat-label">Total memories</span><span class="stat-value">${memories.length}</span></div>
-    <div class="stat-row"><span class="stat-label">Conversations indexed</span><span class="stat-value">${summaries.length}</span></div>
-    <div class="stat-row"><span class="stat-label">People indexed</span><span class="stat-value">${people.length}</span></div>
-    <div class="stat-row"><span class="stat-label">Projects in memory</span><span class="stat-value">${projectList.length}</span></div>
-    <div class="stat-row"><span class="stat-label">Action items</span><span class="stat-value">${actions.length}</span></div>
-    <div class="stat-row"><span class="stat-label">Sources</span><span class="stat-value">${sources.join(', ') || '—'}</span></div>
-  </div>`;
-
-  if (projectList.length > 0) {
-    html += `<div class="dash-card"><div class="card-label">Projects</div>
-      ${projectList.map(([name, count]) => `
-        <div class="memory-item" onclick="askAbout('${name.replace(/'/g,"\'").replace(/`/g,"\`")}')">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-            <strong style="color:var(--text);font-size:0.83rem">${name}</strong>
-            <span style="font-family:'DM Mono',monospace;font-size:0.7rem;color:var(--gold);background:var(--bg);padding:2px 8px;border-radius:4px;border:1px solid var(--border);white-space:nowrap;flex-shrink:0">${count} doc${count!==1?'s':''}</span>
-          </div>
-        </div>`).join('')}
-    </div>`;
-  }
-
-  if (summaries.length > 0) {
-    html += `<div class="dash-card"><div class="card-label">Recent conversations</div>
-      ${summaries.slice(0,6).map(m => `<div class="memory-item" onclick="askAbout('${(m.memory||'').substring(0,50).replace(/'/g,"\'")}')">
-        ${(m.memory||'').substring(0,120)}...
-        <div class="memory-meta">${m.metadata?.date||''} · ${m.metadata?.source||''}</div>
-      </div>`).join('')}</div>`;
-  }
-
-  if (people.length > 0) {
-    html += `<div class="dash-card"><div class="card-label">People</div>
-      ${people.slice(0,6).map(m => `<div class="memory-item" onclick="askAbout('${(m.metadata?.person_name||'').replace(/'/g,"\'")}')">
-        <strong style="color:var(--text)">${m.metadata?.person_name||'Unknown'}</strong><br>
-        ${(m.memory||'').substring(0,100)}...
-        <div class="memory-meta">${m.metadata?.date||''}</div>
-      </div>`).join('')}</div>`;
-  }
-
-  if (actions.length > 0) {
-    html += `<div class="dash-card"><div class="card-label">Action items</div>
-      ${actions.slice(0,5).map(m => `<div class="memory-item">
-        ${(m.memory||'').substring(0,150)}...
-        <div class="memory-meta">${m.metadata?.date||''} · ${m.metadata?.title||''}</div>
-      </div>`).join('')}</div>`;
-  }
-
-  document.getElementById('dash-grid').innerHTML = html;
-}
-function searchDashboard(q) {
-  if (!q.trim()) { renderDashboard(allMemories); return; }
-  const ql = q.toLowerCase();
-  renderDashboard(allMemories.filter(m =>
-    (m.memory||'').toLowerCase().includes(ql) ||
-    (m.metadata?.title||'').toLowerCase().includes(ql) ||
-    (m.metadata?.person_name||'').toLowerCase().includes(ql)
-  ));
-}
-
-function askAbout(topic) {
-  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.getElementById('chat-view').classList.add('active');
-  document.querySelectorAll('.tab')[0].classList.add('active');
-  document.getElementById('chat-input').value = `Tell me more about: ${topic}`;
-  sendMessage();
-}
-
-function checkPw() {
-  const val = document.getElementById('pw-input').value;
-  if (val === 'Cati1618-') {
-    document.getElementById('password-overlay').style.display = 'none';
-    localStorage.setItem('mnemo_auth', '1');
-    loadSavedKeys();
-  } else {
-    document.getElementById('pw-error').textContent = 'Incorrect password';
-    document.getElementById('pw-input').value = '';
-    setTimeout(() => document.getElementById('pw-error').textContent = '', 2000);
-  }
-}
-function loadSavedKeys() {
-  const ak = localStorage.getItem('mnemo_anthropic');
-  const mk = localStorage.getItem('mnemo_mem0');
-  const uid = localStorage.getItem('mnemo_userid');
-  if (ak && mk) {
-    ANTHROPIC_KEY = ak; MEM0_KEY = mk; USER_ID = uid || 'rene_bartoli';
-    document.getElementById('setup-overlay').style.display = 'none';
-    loadDashboard();
-  }
-}
-window.addEventListener('DOMContentLoaded', () => {
-  if (localStorage.getItem('mnemo_auth') === '1') {
-    document.getElementById('password-overlay').style.display = 'none';
-    loadSavedKeys();
-  }
+window.addEventListener('load',()=>{
+  const ak=sessionStorage.getItem('mnemo_ak'),mk=sessionStorage.getItem('mnemo_mk'),uid=sessionStorage.getItem('mnemo_uid');
+  if(ak&&mk){ ANTHROPIC_KEY=ak; MEM0_KEY=mk; USER_ID=uid||'rene_bartoli'; document.getElementById('login-screen').style.display='none'; document.getElementById('app').style.display='flex'; init(); }
+  document.getElementById('login-pass').addEventListener('keydown',e=>{ if(e.key==='Enter') doLogin(); });
+  setupCanvasEvents();
 });
 
-
-// ── Graph view ──────────────────────────────────────────────────────────────
-const NODE_COLORS = {
-  person_profile : { fill:'#3C3489', bg:'#EEEDFE', label:'People' },
-  summary        : { fill:'#0F6E56', bg:'#E1F5EE', label:'Meetings' },
-  project_overview:{ fill:'#993C1D', bg:'#FAECE7', label:'Projects' },
-  action_items   : { fill:'#185FA5', bg:'#E6F1FB', label:'Actions' },
-  user_profile   : { fill:'#854F0B', bg:'#FAEEDA', label:'Profile' },
-  transcript     : { fill:'#3C3489', bg:'#EEEDFE', label:'Transcripts' },
-  project_document:{ fill:'#186A3B', bg:'#E1F5EE', label:'Docs' },
-};
-const DEFAULT_COLOR = { fill:'#545760', bg:'#1a1e26' };
-
-let gNodes=[], gEdges=[], gDragging=null, gHovered=null, gAnimId=null, gBuilt=false;
-
-function buildGraph() {
-  if (!MEM0_KEY) return;
-  const loading = document.getElementById('graph-loading');
-  if (loading) loading.style.display = 'flex';
-  gBuilt = false;
-
-  fetch(`https://api.mem0.ai/v1/memories/?user_id=${USER_ID}&limit=200`, {
-    headers: { 'Authorization': `Token ${MEM0_KEY}` }
-  })
-  .then(r => r.json())
-  .then(data => {
-    const mems = Array.isArray(data) ? data : (data.results || []);
-    buildGraphFromMemories(mems);
-    if (loading) loading.style.display = 'none';
-  })
-  .catch(err => {
-    if (loading) { loading.innerHTML = '<span style="color:#c24a4a">Failed to load — check your Mem0 key</span>'; }
-  });
+// ── INIT
+async function init() {
+  setStatus('connecting','connecting...');
+  try { await loadMemories(); setStatus('online',`${memories.length} memories`); }
+  catch(e){ setStatus('','offline'); }
+  updateLastDownloadUI();
 }
 
-function buildGraphFromMemories(mems) {
-  const nodeMap = {};
-  gEdges = [];
-
-  // Group memories by unique entity — one node per project, person, topic, source
-  mems.forEach(m => {
-    const type = m.metadata?.type || 'general';
-    const pname = m.metadata?.project_name || '';
-    const person = m.metadata?.person_name || '';
-    const source = m.metadata?.source || '';
-    const title = m.metadata?.title || '';
-
-    // Determine the canonical node key and label for this memory
-    let key, label, nodeType, size;
-
-    if (type === 'project_overview' || type === 'project_document') {
-      key = 'proj_' + pname; label = pname; nodeType = 'project_overview'; size = 16;
-    } else if (type === 'person_profile' && person) {
-      key = 'person_' + person; label = person; nodeType = 'person_profile'; size = 13;
-    } else if (type === 'user_profile') {
-      key = 'user_profile'; label = 'Rene Bartoli'; nodeType = 'user_profile'; size = 20;
-    } else if (type === 'summary' && title) {
-      key = 'meet_' + title; label = title; nodeType = 'summary'; size = 11;
-    } else if (type === 'action_items' && title) {
-      key = 'action_' + title; label = title; nodeType = 'action_items'; size = 10;
-    } else if (type === 'project_memory' && pname) {
-      key = 'projmem_' + pname; label = pname + ' (context)'; nodeType = 'project_overview'; size = 13;
-    } else if (source) {
-      key = 'src_' + source + '_' + title.substring(0,20); label = title || source; nodeType = type; size = 10;
-    } else {
-      return; // skip unclassifiable
-    }
-
-    if (!key) return;
-    const short = label.length > 24 ? label.substring(0, 23) + '…' : label;
-
-    if (!nodeMap[key]) {
-      nodeMap[key] = {
-        id: key, label: short, fullLabel: label,
-        type: nodeType, source, pname, person,
-        memCount: 0, size,
-        x: 0, y: 0, vx: 0, vy: 0
-      };
-    }
-    nodeMap[key].memCount++;
-    // Scale size slightly with memory count (more memories = more important node)
-    nodeMap[key].size = Math.min(nodeMap[key].size + Math.log(nodeMap[key].memCount) * 1.5, 24);
-  });
-
-  // Build edges — connect projects to their meeting summaries, people to projects
-  const nodes = Object.values(nodeMap);
-  const profileNode = nodeMap['user_profile'];
-
-  nodes.forEach(n => {
-    // Connect profile to all projects
-    if (n.type === 'project_overview' && profileNode) {
-      gEdges.push({ s: 'user_profile', t: n.id });
-    }
-    // Connect meeting summaries to matching project
-    if (n.type === 'summary' && n.pname) {
-      const projKey = 'proj_' + n.pname;
-      if (nodeMap[projKey]) gEdges.push({ s: projKey, t: n.id });
-    }
-    // Connect action items to matching project
-    if (n.type === 'action_items' && n.pname) {
-      const projKey = 'proj_' + n.pname;
-      if (nodeMap[projKey]) gEdges.push({ s: projKey, t: n.id });
-    }
-    // Connect people to profile
-    if (n.type === 'person_profile' && profileNode) {
-      gEdges.push({ s: 'user_profile', t: n.id });
-    }
-  });
-
-  // Sort by size descending — most important nodes first
-  gNodes = nodes.sort((a, b) => b.size - a.size).slice(0, 80);
-
-  // Assign initial positions in a spiral
-  const cx = 300, cy = 240;
-  gNodes.forEach((n, i) => {
-    const angle = (i / gNodes.length) * Math.PI * 2 * 3;
-    const r = 50 + i * 4;
-    n.x = cx + Math.cos(angle) * r;
-    n.y = cy + Math.sin(angle) * r;
-  });
-
-  // Filter edges to nodes in our set
-  const nodeIds = new Set(gNodes.map(n => n.id));
-  gEdges = gEdges.filter(e => nodeIds.has(e.s) && nodeIds.has(e.t));
-  gBuilt = true;
-  initGraphCanvas();
+function setStatus(state,text) {
+  document.getElementById('status-dot').className='status-dot'+(state==='online'?' online':'');
+  document.getElementById('status-text').textContent=text;
 }
 
-function initGraphCanvas() {
-  const canvas = document.getElementById('graph-canvas');
-  if (!canvas || !gBuilt) return;
+// ── MODEL
+function onModelChange() {
+  selectedModel=document.getElementById('model-select').value;
+  appendMsg('system','Model: '+getModelLabel(selectedModel));
+}
+function getModelLabel(m) { return {'claude-sonnet-4-6':'Sonnet 4.6','claude-sonnet-4-6-thinking':'Sonnet 4.6 + Thinking','claude-opus-4-6':'Opus 4.6'}[m]||m; }
+function getActualModel(m) { return m==='claude-sonnet-4-6-thinking'?'claude-sonnet-4-6':m; }
 
-  const dpr = window.devicePixelRatio || 1;
-  let W, H, ctx, simId;
+// ── TABS
+function switchView(view,tab) {
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById(view+'-view').classList.add('active');
+  tab.classList.add('active');
+  setTimeout(()=>{
+    window.dispatchEvent(new Event('resize'));
+    if(view==='graph'){ resizeCanvas(); if(gNodes.length===0) loadGraph(); else drawGraph(); }
+    if(view==='memories'&&memories.length===0) loadMemories();
+    if(view==='usage') renderUsage();
+  },50);
+}
 
-  function resize() {
-    const rect = canvas.parentElement.getBoundingClientRect();
-    W = rect.width; H = rect.height;
-    canvas.width = W * dpr; canvas.height = H * dpr;
-    canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
-    ctx = canvas.getContext('2d'); ctx.scale(dpr, dpr);
-  }
+// ── VOICE
+function toggleVoice() {
+  if(!('webkitSpeechRecognition' in window)&&!('SpeechRecognition' in window)){ appendMsg('system','⚠️ Voice not supported.'); return; }
+  isRecording?stopRecording():startRecording();
+}
+function startRecording() {
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  recognition=new SR(); recognition.continuous=false; recognition.interimResults=true; recognition.lang=navigator.language||'es-US';
+  recognition.onstart=()=>{ isRecording=true; document.getElementById('mic-btn').classList.add('recording'); };
+  recognition.onresult=e=>{ document.getElementById('chat-input').value=Array.from(e.results).map(r=>r[0].transcript).join(''); };
+  recognition.onend=()=>{ stopRecording(); const v=document.getElementById('chat-input').value.trim(); if(v) sendMessage(); };
+  recognition.onerror=()=>stopRecording();
+  recognition.start();
+}
+function stopRecording() { if(recognition){try{recognition.stop();}catch(e){}} isRecording=false; document.getElementById('mic-btn').classList.remove('recording'); }
 
-  function simulate() {
-    const cx = W / 2, cy = H / 2;
-    gNodes.forEach(a => {
-      if (a === gDragging) return;
-      let fx = (cx - a.x) * 0.012, fy = (cy - a.y) * 0.012;
-      gNodes.forEach(b => {
-        if (a === b) return;
-        const dx = a.x - b.x, dy = a.y - b.y;
-        const dist = Math.sqrt(dx*dx + dy*dy) || 1;
-        const rep = 2200 / dist / dist;
-        fx += dx / dist * rep; fy += dy / dist * rep;
-      });
-      gEdges.forEach(e => {
-        const src = e.s === a.id ? gNodes.find(n => n.id === e.t) : e.t === a.id ? gNodes.find(n => n.id === e.s) : null;
-        if (!src) return;
-        const dx = src.x - a.x, dy = src.y - a.y;
-        const dist = Math.sqrt(dx*dx + dy*dy) || 1;
-        const ideal = 80;
-        fx += dx / dist * (dist - ideal) * 0.035;
-        fy += dy / dist * (dist - ideal) * 0.035;
-      });
-      a.vx = (a.vx + fx) * 0.72; a.vy = (a.vy + fy) * 0.72;
-      a.x = Math.max(a.size + 10, Math.min(W - a.size - 10, a.x + a.vx));
-      a.y = Math.max(a.size + 10, Math.min(H - a.size - 10, a.y + a.vy));
-    });
-  }
+// ── TTS
+function toggleTTS() { ttsEnabled=!ttsEnabled; document.getElementById('tts-switch').className='toggle-switch'+(ttsEnabled?' on':''); }
+function speak(text) { if(!ttsEnabled||!window.speechSynthesis) return; window.speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(text.replace(/[#*`]/g,'')); u.lang=navigator.language||'es-US'; u.rate=1.05; window.speechSynthesis.speak(u); }
 
-  function draw() {
-    if (!ctx) return;
-    ctx.clearRect(0, 0, W, H);
+// ── CHAT
+async function sendMessage() {
+  const input=document.getElementById('chat-input'), text=input.value.trim();
+  if(!text) return;
+  input.value=''; input.style.height='auto';
+  appendMsg('user',text); chatMessages.push({role:'user',content:text});
+  const indicator=appendTyping();
+  try {
+    const mems=await fetchMemories(10);
+    const ctx=mems.map(m=>`• ${m.memory}`).join('\n')||'No memories yet.';
+    const {reply,usage}=await askClaude(text,ctx);
+    indicator.remove(); appendMsg('assistant',reply);
+    chatMessages.push({role:'assistant',content:reply});
+    speak(reply);
+    if(usage) logUsage(selectedModel,usage.input_tokens||0,usage.output_tokens||0);
+    saveToMem0(text,reply);
+  } catch(e){ indicator.remove(); appendMsg('system',`⚠️ ${e.message}`); }
+}
 
-    gEdges.forEach(e => {
-      const a = gNodes.find(n => n.id === e.s), b = gNodes.find(n => n.id === e.t);
-      if (!a || !b) return;
-      const active = gHovered && (gHovered.id === e.s || gHovered.id === e.t);
-      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
-      ctx.strokeStyle = active ? 'rgba(201,168,76,0.4)' : 'rgba(255,255,255,0.06)';
-      ctx.lineWidth = active ? 1.2 : 0.5;
-      ctx.stroke();
-    });
+function appendMsg(role,text) {
+  const c=document.getElementById('chat-messages'), d=document.createElement('div');
+  d.className=`msg ${role}`; d.innerHTML=fmt(text); c.appendChild(d); c.scrollTop=c.scrollHeight; return d;
+}
+function appendTyping() {
+  const c=document.getElementById('chat-messages'), d=document.createElement('div');
+  d.className='msg assistant msg-indicator'; d.innerHTML='<div class="dot-pulse"><span></span><span></span><span></span></div>';
+  c.appendChild(d); c.scrollTop=c.scrollHeight; return d;
+}
+function fmt(t) { return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/\*(.*?)\*/g,'<em>$1</em>').replace(/`(.*?)`/g,'<code>$1</code>').replace(/\n/g,'<br>'); }
 
-    gNodes.forEach(n => {
-      const c = NODE_COLORS[n.type] || DEFAULT_COLOR;
-      const r = n.size + (gHovered === n ? 3 : 0);
-      ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
-      ctx.fillStyle = c.bg;
-      ctx.strokeStyle = gHovered === n ? '#c9a84c' : c.fill;
-      ctx.lineWidth = gHovered === n ? 2 : 1;
-      ctx.fill(); ctx.stroke();
-
-      const fontSize = Math.min(r * 0.65, 10);
-      ctx.font = `${gHovered === n ? 500 : 400} ${fontSize}px sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.fillStyle = c.fill;
-      ctx.fillText(n.label, n.x, n.y + r + 10);
-    });
-  }
-
-  function loop() { simulate(); draw(); gAnimId = requestAnimationFrame(loop); }
-  if (gAnimId) cancelAnimationFrame(gAnimId);
-
-  function getNode(ex, ey) {
-    const rect = canvas.getBoundingClientRect();
-    const mx = ex - rect.left, my = ey - rect.top;
-    return gNodes.find(n => Math.hypot(n.x - mx, n.y - my) < n.size + 5) || null;
-  }
-
-  const tip = document.getElementById('graph-tip');
-  canvas.onmousemove = e => {
-    const n = getNode(e.clientX, e.clientY);
-    gHovered = n;
-    canvas.style.cursor = n ? 'pointer' : 'default';
-    if (gDragging) {
-      const rect = canvas.getBoundingClientRect();
-      gDragging.x = e.clientX - rect.left; gDragging.y = e.clientY - rect.top;
-      gDragging.vx = 0; gDragging.vy = 0;
-    }
-    if (n && tip) {
-      tip.style.display = 'block';
-      tip.style.left = (e.clientX - canvas.getBoundingClientRect().left + 14) + 'px';
-      tip.style.top = (e.clientY - canvas.getBoundingClientRect().top - 10) + 'px';
-      tip.innerHTML = `<strong style="color:#c9a84c">${n.fullLabel}</strong><br><span style="opacity:0.6">${n.type}${n.date ? ' · ' + n.date : ''}${n.source ? ' · ' + n.source : ''}</span>`;
-    } else if (tip) { tip.style.display = 'none'; }
+// ── CLAUDE API
+async function askClaude(msg,ctx) {
+  const indicator=document.getElementById('web-indicator'); indicator.textContent='';
+  const useThinking=selectedModel==='claude-sonnet-4-6-thinking';
+  const body={
+    model:getActualModel(selectedModel), max_tokens:useThinking?8000:1000,
+    system:`You are MNEMO, René Bartoli's intelligent personal assistant. You have:\n1. Access to René's personal memory (meetings, projects, people, decisions)\n2. Web search for current data and research\n\nUse memory when relevant. Search web when question needs current info. Respond in same language as question. Be concise.\n\n--- PERSONAL MEMORY ---\n${ctx}\n--- END MEMORY ---`,
+    tools:[{type:'web_search_20250305',name:'web_search'}],
+    messages:[...chatMessages.slice(-8),{role:'user',content:msg}]
   };
-  canvas.onmousedown = e => { gDragging = getNode(e.clientX, e.clientY); };
-  canvas.onmouseup = () => { gDragging = null; };
-  canvas.onmouseleave = () => { if (tip) tip.style.display = 'none'; gHovered = null; gDragging = null; };
-  canvas.onclick = e => {
-    const n = getNode(e.clientX, e.clientY);
-    if (n) {
-      switchView('chat', document.querySelectorAll('.tab')[0]);
-      document.getElementById('chat-input').value = `Tell me about: ${n.fullLabel}`;
-      sendMessage();
-    }
-  };
+  if(useThinking) body.thinking={type:'enabled',budget_tokens:5000};
 
-  resize();
-  loop();
+  const headers={'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'};
+  const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers,body:JSON.stringify(body)});
+  if(!res.ok){const e=await res.json();throw new Error(e.error?.message||'API error');}
+  const data=await res.json();
+
+  if(data.stop_reason==='tool_use'){
+    indicator.textContent='🔍 searching web...';
+    const toolBlock=data.content.find(b=>b.type==='tool_use');
+    const body2={...body,messages:[...body.messages,{role:'assistant',content:data.content},{role:'user',content:[{type:'tool_result',tool_use_id:toolBlock.id,content:'Search completed.'}]}]};
+    const res2=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers,body:JSON.stringify(body2)});
+    indicator.textContent='';
+    if(!res2.ok){const e=await res2.json();throw new Error(e.error?.message||'API error');}
+    const data2=await res2.json();
+    return{reply:data2.content.filter(b=>b.type==='text').map(b=>b.text).join(''),usage:data2.usage};
+  }
+  return{reply:data.content.filter(b=>b.type==='text').map(b=>b.text).join(''),usage:data.usage};
 }
 
-// Override switchView to trigger graph build on first visit
-const _origSwitch = switchView;
-switchView = function(view, btn) {
-  _origSwitch(view, btn);
-  if (view === 'graph' && MEM0_KEY && !gBuilt) buildGraph();
-};
+// ── MEM0
+async function fetchMemories(limit=100) {
+  const res=await fetch(`https://api.mem0.ai/v1/memories/?user_id=${USER_ID}&limit=${limit}`,{headers:{'Authorization':`Token ${MEM0_KEY}`}});
+  if(!res.ok) throw new Error('Mem0 error');
+  const data=await res.json(); return Array.isArray(data)?data:(data.results||[]);
+}
+async function loadMemories() {
+  try { memories=await fetchMemories(200); renderMemories(); document.getElementById('mem-count').textContent=memories.length; setStatus('online',`${memories.length} memories`); }
+  catch(e){ setStatus('','mem0 error'); }
+}
+function renderMemories() {
+  const list=document.getElementById('memories-list');
+  if(!memories.length){ list.innerHTML='<div class="empty-state"><div class="icon">🧠</div>No memories yet.</div>'; return; }
+  list.innerHTML=memories.map(m=>`<div class="memory-card" onclick="askAboutMemory('${esc(m.memory?.substring(0,60))}')"><p>${esc(m.memory||'')}</p><div class="memory-meta"><span class="memory-type">${m.metadata?.type||'memory'}</span><span>${fmtDate(m.updated_at||m.created_at)}</span></div></div>`).join('');
+}
+function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+function fmtDate(d){if(!d)return'';return new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
+function askAboutMemory(text){switchView('chat',document.querySelectorAll('.tab')[0]);document.getElementById('chat-input').value=`Tell me more about: ${text}`;sendMessage();}
+async function saveToMem0(u,a){
+  try{
+    await fetch('https://api.mem0.ai/v1/memories/',{method:'POST',headers:{'Authorization':`Token ${MEM0_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({messages:[{role:'user',content:u},{role:'assistant',content:a}],user_id:USER_ID})});
+    memories=await fetchMemories(200); document.getElementById('mem-count').textContent=memories.length; setStatus('online',`${memories.length} memories`);
+  }catch(e){}
+}
 
+// ── USAGE
+function setUsagePeriod(p,el){usagePeriod=p;document.querySelectorAll('.period-chip').forEach(c=>c.classList.remove('active'));el.classList.add('active');renderUsage();}
+function filterLogs(){
+  const now=Date.now();
+  if(usagePeriod==='session') return usageLog.filter(u=>u.ts>=window._sessionStart);
+  if(usagePeriod==='today'){const d=new Date();d.setHours(0,0,0,0);return usageLog.filter(u=>u.ts>=d.getTime());}
+  if(usagePeriod==='7d') return usageLog.filter(u=>u.ts>=now-7*86400000);
+  return usageLog;
+}
+function renderUsage(){
+  const logs=filterLogs();
+  const totalIn=logs.reduce((s,u)=>s+(u.inputTokens||0),0);
+  const totalOut=logs.reduce((s,u)=>s+(u.outputTokens||0),0);
+  const totalCost=logs.reduce((s,u)=>s+(u.cost||0),0);
+  document.getElementById('u-in').textContent=totalIn.toLocaleString();
+  document.getElementById('u-out').textContent=totalOut.toLocaleString();
+  document.getElementById('u-cost').textContent=`$${totalCost.toFixed(4)}`;
+  document.getElementById('u-cost-sub').textContent=`${logs.length} requests · ${{'session':'this session','today':'today','7d':'last 7 days','all':'all time'}[usagePeriod]}`;
+
+  const table=document.getElementById('usage-table');
+  table.querySelectorAll('.usage-table-row:not(.header)').forEach(r=>r.remove());
+  const empty=document.getElementById('usage-empty');
+
+  if(!logs.length){ if(!empty){const e=document.createElement('div');e.id='usage-empty';e.className='usage-empty';e.innerHTML='No usage yet.<br>Start chatting to see data.';table.appendChild(e);} return; }
+  if(empty) empty.remove();
+
+  const byModel={};
+  logs.forEach(u=>{if(!byModel[u.model])byModel[u.model]={in:0,out:0,cost:0};byModel[u.model].in+=u.inputTokens||0;byModel[u.model].out+=u.outputTokens||0;byModel[u.model].cost+=u.cost||0;});
+  Object.entries(byModel).forEach(([model,d])=>{
+    const row=document.createElement('div'); row.className='usage-table-row';
+    row.innerHTML=`<span class="model-tag">${getModelLabel(model)}</span><span class="u-in">${(d.in/1000).toFixed(1)}K</span><span class="u-out">${(d.out/1000).toFixed(1)}K</span><span class="u-cost">$${d.cost.toFixed(4)}</span>`;
+    table.appendChild(row);
+  });
+}
+
+// ── SUMMARY
+function openSummary(){document.getElementById('summary-modal').classList.add('open');document.getElementById('summary-output').classList.remove('visible');document.getElementById('copy-btn').style.display='none';document.getElementById('summary-output').textContent='';updateLastDownloadUI();setDefaultDates();}
+function closeSummary(){document.getElementById('summary-modal').classList.remove('open');}
+function setDefaultDates(){const today=new Date().toISOString().split('T')[0];document.getElementById('date-to').value=today;const ld=localStorage.getItem('mnemo_last_download');document.getElementById('date-from').value=ld?ld.split('T')[0]:today;}
+function selectPeriod(p,el){selectedPeriod=p;document.querySelectorAll('.period-opt').forEach(o=>o.classList.remove('selected'));el.classList.add('selected');document.getElementById('custom-range').style.display=p==='custom'?'grid':'none';}
+function updateLastDownloadUI(){const ld=localStorage.getItem('mnemo_last_download');document.getElementById('last-dl-text').textContent=ld?`Last export: ${fmtDate(ld)}`:'No previous export';}
+function getPeriodDates(){
+  const now=new Date(),today=now.toISOString().split('T')[0];
+  let from=today,to=today;
+  if(selectedPeriod==='7d'){const d=new Date(now);d.setDate(d.getDate()-7);from=d.toISOString().split('T')[0];}
+  else if(selectedPeriod==='30d'){const d=new Date(now);d.setDate(d.getDate()-30);from=d.toISOString().split('T')[0];}
+  else if(selectedPeriod==='since'){const ld=localStorage.getItem('mnemo_last_download');from=ld?ld.split('T')[0]:today;}
+  else if(selectedPeriod==='custom'){from=document.getElementById('date-from').value||today;to=document.getElementById('date-to').value||today;}
+  return{from,to};
+}
+async function generateSummary(){
+  const output=document.getElementById('summary-output');
+  output.textContent='⏳ Generating...'; output.classList.add('visible'); document.getElementById('copy-btn').style.display='none';
+  const{from,to}=getPeriodDates();
+  try{
+    const allMems=await fetchMemories(500);
+    const filtered=allMems.filter(m=>{const d=new Date(m.updated_at||m.created_at||'2020-01-01');return d>=new Date(from+'T00:00:00')&&d<=new Date(to+'T23:59:59');});
+    if(!filtered.length){output.textContent=`No memories between ${from} and ${to}.`;return;}
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1000,messages:[{role:'user',content:`Create a clear structured summary of these memories from ${from} to ${to}. Include: key decisions, action items, people mentioned, open topics. Format for pasting as context into Claude.ai.\n\nMemories:\n${filtered.map(m=>`• ${m.memory}`).join('\n')}`}]})});
+    const data=await res.json();
+    const summary=data.content?.filter(b=>b.type==='text').map(b=>b.text).join('')||'';
+    output.textContent=`--- MNEMO CONTEXT SUMMARY ---\nPeriod: ${from} → ${to}\nGenerated: ${new Date().toLocaleString()}\n${'─'.repeat(40)}\n\n`+summary;
+    document.getElementById('copy-btn').style.display='block';
+    localStorage.setItem('mnemo_last_download',new Date().toISOString());
+    updateLastDownloadUI();
+    if(data.usage) logUsage('claude-sonnet-4-6',data.usage.input_tokens||0,data.usage.output_tokens||0);
+  }catch(e){output.textContent=`⚠️ ${e.message}`;}
+}
+function copySummary(){navigator.clipboard.writeText(document.getElementById('summary-output').textContent).then(()=>{const b=document.getElementById('copy-btn');b.textContent='✅ Copied!';setTimeout(()=>b.textContent='📋 Copy',2000);});}
+
+// ── GRAPH
+function resizeCanvas(){const canvas=document.getElementById('graph-canvas'),view=document.getElementById('graph-view');canvas.width=view.clientWidth||window.innerWidth;canvas.height=view.clientHeight||(window.innerHeight-130);}
+async function loadGraph(){
+  resizeCanvas();
+  const canvas=document.getElementById('graph-canvas'),ctx=canvas.getContext('2d');
+  ctx.fillStyle='#0a0a0f';ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle='#6b6880';ctx.font='13px DM Sans,sans-serif';ctx.textAlign='center';
+  ctx.fillText('Loading graph...',canvas.width/2,canvas.height/2);
+  try{const mems=await fetchMemories(300);buildGraph(mems);runSimulation();}
+  catch(e){ctx.fillText('Error loading',canvas.width/2,canvas.height/2);}
+}
+function buildGraph(mems){
+  const canvas=document.getElementById('graph-canvas'),cx=canvas.width/2,cy=canvas.height/2;
+  const nodeMap={},edgeSet=new Set(); gEdges=[];
+  function addNode(id,label,type,size=8){if(!nodeMap[id])nodeMap[id]={id,label,type,size,x:cx+(Math.random()-0.5)*160,y:cy+(Math.random()-0.5)*160,vx:0,vy:0,fullLabel:label};else nodeMap[id].size=Math.min(nodeMap[id].size+1,20);return nodeMap[id];}
+  function addEdge(from,to){const eid=`${from}->${to}`;if(!edgeSet.has(eid)){edgeSet.add(eid);gEdges.push({from,to});}}
+  addNode('rene','René','person',18);
+  const clusterMap={};
+  mems.forEach(m=>{
+    const meta=m.metadata||{},text=m.memory||'';
+    if(meta.project_name){const pid='proj_'+meta.project_name.replace(/\s+/g,'_').toLowerCase().substring(0,20);addNode(pid,meta.project_name,'project',12);addEdge('rene',pid);}
+    const isMeeting=meta.type==='meeting'||/meeting|reunión|sprint|weekly|daily/i.test(text);
+    if(isMeeting){const words=text.split(' ').slice(0,4).join(' ');const clKey=words.toLowerCase().replace(/[^a-z0-9 ]/g,'').trim().replace(/\s+/g,'_').substring(0,30);if(!clusterMap[clKey])clusterMap[clKey]={id:'cl_'+clKey,count:0,label:words};clusterMap[clKey].count++;}
+    const people=text.match(/\b([A-Z][a-záéíóú]+ [A-Z][a-záéíóú]+)\b/g)||[];
+    people.forEach(name=>{if(/René Bartoli|Rene Bartoli/.test(name))return;const pid='person_'+name.replace(/\s/g,'_').toLowerCase().substring(0,20);addNode(pid,name,'person',7);addEdge('rene',pid);});
+  });
+  Object.values(clusterMap).forEach(c=>{const label=c.label+(c.count>1?` (${c.count})`:'');addNode(c.id,label,'cluster',8+Math.min(c.count*2,10));addEdge('rene',c.id);});
+  gNodes=Object.values(nodeMap);
+}
+function runSimulation(){if(gAnimFrame)cancelAnimationFrame(gAnimFrame);let steps=0;function tick(){simulate();drawGraph();if(steps++<260)gAnimFrame=requestAnimationFrame(tick);else gAnimFrame=null;}tick();}
+function simulate(){
+  const canvas=document.getElementById('graph-canvas'),cx=canvas.width/2,cy=canvas.height/2;
+  const k=88,damping=0.84,gravity=0.017;
+  gNodes.forEach(n=>{n.vx*=damping;n.vy*=damping;});
+  for(let i=0;i<gNodes.length;i++)for(let j=i+1;j<gNodes.length;j++){const a=gNodes[i],b=gNodes[j],dx=b.x-a.x,dy=b.y-a.y,d=Math.sqrt(dx*dx+dy*dy)||1,f=k*k/d*1.1;a.vx-=dx/d*f;a.vy-=dy/d*f;b.vx+=dx/d*f;b.vy+=dy/d*f;}
+  const idx={};gNodes.forEach(n=>idx[n.id]=n);
+  gEdges.forEach(e=>{const a=idx[e.from],b=idx[e.to];if(!a||!b)return;const dx=b.x-a.x,dy=b.y-a.y,d=Math.sqrt(dx*dx+dy*dy)||1,f=(d-k*1.4)/d*0.27;a.vx+=dx*f;a.vy+=dy*f;b.vx-=dx*f;b.vy-=dy*f;});
+  gNodes.forEach(n=>{n.vx+=(cx-n.x)*gravity;n.vy+=(cy-n.y)*gravity;if(gDragging!==n){n.x+=n.vx;n.y+=n.vy;}const c2=document.getElementById('graph-canvas');n.x=Math.max(n.size+10,Math.min(c2.width-n.size-10,n.x));n.y=Math.max(n.size+20,Math.min(c2.height-n.size-10,n.y));});
+}
+function drawGraph(){
+  const canvas=document.getElementById('graph-canvas'),ctx=canvas.getContext('2d');
+  ctx.fillStyle='#0a0a0f';ctx.fillRect(0,0,canvas.width,canvas.height);
+  const idx={};gNodes.forEach(n=>idx[n.id]=n);
+
+  // EDGES — clearly visible lines with color derived from target node
+  gEdges.forEach(e=>{
+    const a=idx[e.from],b=idx[e.to];if(!a||!b)return;
+    const color=NODE_COLORS[b.type]||NODE_COLORS.other;
+    ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);
+    ctx.strokeStyle=color+'66'; ctx.lineWidth=1.5; ctx.stroke();
+  });
+
+  // NODES
+  gNodes.forEach(n=>{
+    const isH=gHovered===n,color=NODE_COLORS[n.type]||NODE_COLORS.other,r=n.size;
+    if(isH){ctx.beginPath();ctx.arc(n.x,n.y,r+9,0,Math.PI*2);ctx.fillStyle=color+'20';ctx.fill();}
+    ctx.shadowColor=color+'77';ctx.shadowBlur=isH?16:7;
+    ctx.beginPath();ctx.arc(n.x,n.y,r,0,Math.PI*2);ctx.fillStyle=isH?color:color+'cc';ctx.fill();
+    ctx.shadowBlur=0;
+    ctx.strokeStyle=color;ctx.lineWidth=isH?2:1.5;ctx.beginPath();ctx.arc(n.x,n.y,r,0,Math.PI*2);ctx.stroke();
+    const maxL=16,lbl=n.label.length>maxL?n.label.substring(0,maxL)+'…':n.label;
+    ctx.fillStyle=isH?'#e8e6f0':'#9896b0';ctx.font=`${isH?500:400} ${isH?12:11}px DM Sans,sans-serif`;ctx.textAlign='center';
+    ctx.fillText(lbl,n.x,n.y+r+14);
+  });
+}
+function getNode(x,y){for(let i=gNodes.length-1;i>=0;i--){const n=gNodes[i],dx=n.x-x,dy=n.y-y;if(Math.sqrt(dx*dx+dy*dy)<n.size+8)return n;}return null;}
+function moveHandler(x,y){
+  gHovered=getNode(x,y);const tip=document.getElementById('graph-tooltip');
+  if(gHovered){tip.style.display='block';tip.style.left=(x+13)+'px';tip.style.top=(y-6)+'px';tip.innerHTML=`<strong>${gHovered.label}</strong><br><span style="color:var(--text3)">${gHovered.type}</span>`;}
+  else{tip.style.display='none';}
+  if(gDragging){gDragging.x=x;gDragging.y=y;drawGraph();}
+}
+function clientXY(e){const c=document.getElementById('graph-canvas'),r=c.getBoundingClientRect(),s=e.touches?e.touches[0]:e;return{x:s.clientX-r.left,y:s.clientY-r.top};}
+function resetGraph(){gNodes=[];gEdges=[];loadGraph();}
+function setupCanvasEvents(){
+  const canvas=document.getElementById('graph-canvas');
+  canvas.onmousemove=e=>{const p=clientXY(e);canvas.style.cursor=getNode(p.x,p.y)?'pointer':'default';moveHandler(p.x,p.y);};
+  canvas.onmousedown=e=>{const p=clientXY(e);gDragging=getNode(p.x,p.y);};
+  canvas.onmouseup=()=>{gDragging=null;};
+  canvas.onmouseleave=()=>{gDragging=null;gHovered=null;document.getElementById('graph-tooltip').style.display='none';};
+  canvas.onclick=e=>{const p=clientXY(e),n=getNode(p.x,p.y);if(n){switchView('chat',document.querySelectorAll('.tab')[0]);document.getElementById('chat-input').value=`Tell me about: ${n.fullLabel}`;sendMessage();}};
+  let tStart=0,tNode=null;
+  canvas.addEventListener('touchstart',e=>{e.preventDefault();const p=clientXY(e);tStart=Date.now();tNode=getNode(p.x,p.y);gDragging=tNode;},{passive:false});
+  canvas.addEventListener('touchmove',e=>{e.preventDefault();const p=clientXY(e);moveHandler(p.x,p.y);},{passive:false});
+  canvas.addEventListener('touchend',e=>{e.preventDefault();if(Date.now()-tStart<200&&tNode){switchView('chat',document.querySelectorAll('.tab')[0]);document.getElementById('chat-input').value=`Tell me about: ${tNode.fullLabel}`;sendMessage();}gDragging=null;gHovered=null;document.getElementById('graph-tooltip').style.display='none';},{passive:false});
+}
+window.addEventListener('resize',()=>{if(document.getElementById('graph-view').classList.contains('active')){resizeCanvas();if(gNodes.length)drawGraph();}});
 </script>
 </body>
 </html>
