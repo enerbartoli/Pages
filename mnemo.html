@@ -1168,23 +1168,17 @@ function buildGraph(mems){
 
 function runSimulation(){
   if(gAnimFrame)cancelAnimationFrame(gAnimFrame);
-  // Pre-settle physics invisibly so nodes are near equilibrium on first draw
-  for(let i=0;i<250;i++) simulate();
+  // Pre-settle: 400 synchronous steps to reach equilibrium before first draw (~10ms)
+  for(let i=0;i<400;i++) simulate();
   let steps=0;
-  function tick(){simulate();drawGraph();if(steps++<60)gAnimFrame=requestAnimationFrame(tick);else gAnimFrame=null;}
+  function tick(){simulate();drawGraph();if(steps++<30)gAnimFrame=requestAnimationFrame(tick);else gAnimFrame=null;}
   tick();
-  // Auto-nudge the largest node to clear any residual oscillation
-  setTimeout(()=>{
-    if(gDragging) return;
-    const largest=gNodes.filter(n=>n.id!=='rene').sort((a,b)=>b.size-a.size)[0];
-    if(largest){gDragging=largest;largest.x+=3;largest.y+=3;setTimeout(()=>{largest.vx=0;largest.vy=0;gDragging=null;},200);}
-  },200);
 }
 
 function simulate(){
   const canvas=document.getElementById('graph-canvas'),cx=canvas.width/2,cy=canvas.height/2;
   const W=canvas.width,H=canvas.height;
-  const k=50, damping=0.55, gravity=0.18, MAX_V=4;
+  const k=50, damping=0.3, gravity=0.005, MAX_V=2;
 
   // Pin René at center — always
   const rene=gNodes.find(n=>n.id==='rene');
