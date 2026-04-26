@@ -35,6 +35,7 @@
   .model-select { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text2); font-family: inherit; font-size: 11px; padding: 4px 8px; outline: none; cursor: pointer; transition: border-color 0.2s; max-width: 130px; text-overflow: ellipsis; }
   .model-select:focus { border-color: var(--accent); }
   .header-status { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text3); white-space: nowrap; flex-shrink: 0; }
+  .version-badge { font-size: 10px; color: var(--text3); opacity: 0.55; font-family: 'DM Mono', monospace; white-space: nowrap; flex-shrink: 0; user-select: none; letter-spacing: 0.3px; }
   .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text3); flex-shrink: 0; }
   .status-dot.online { background: var(--success); }
 
@@ -211,6 +212,7 @@
     .header-logo { font-size: 14px; }
     .model-select { max-width: 92px; font-size: 10px; }
     .tab { font-size: 9px; padding: 9px 2px; }
+    .version-badge { display: none; }
   }
 
   ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
@@ -242,6 +244,7 @@
         <option value="claude-sonnet-4-6">Sonnet 4.6</option>
         <option value="claude-opus-4-6">Opus 4.6</option>
       </select>
+      <span class="version-badge" id="version-badge">V14.5</span>
       <div class="header-status">
         <div class="status-dot" id="status-dot"></div>
         <span id="status-text">connecting...</span>
@@ -439,6 +442,7 @@ let ttsEnabled=false, isRecording=false, recognition=null;
 let selectedPeriod='today';
 let webSearchEnabled=false;
 let thinkingEnabled=false;
+const MNEMO_VERSION='V14.5';
 let gNodes=[], gEdges=[], gDragging=null, gHovered=null, gAnimFrame=null, gSimMaxV=4;
 
 const PRICING = {
@@ -1167,17 +1171,12 @@ function buildGraph(mems){
 }
 
 function runSimulation(){
-  if(gAnimFrame)cancelAnimationFrame(gAnimFrame);
-  // Pre-settle at full speed to find equilibrium positions
+  if(gAnimFrame){cancelAnimationFrame(gAnimFrame);gAnimFrame=null;}
+  // Pre-settle synchronously — no animation loop means zero vibration
   gSimMaxV=4;
-  for(let i=0;i<400;i++) simulate();
-  // Zero velocities so animation starts from rest
+  for(let i=0;i<600;i++) simulate();
   gNodes.forEach(n=>{n.vx=0;n.vy=0;});
-  // Animate with near-zero max speed — residual forces cause imperceptible drift only
-  gSimMaxV=0.4;
-  let steps=0;
-  function tick(){simulate();drawGraph();if(steps++<30)gAnimFrame=requestAnimationFrame(tick);else gAnimFrame=null;}
-  tick();
+  drawGraph();
 }
 
 function simulate(){
