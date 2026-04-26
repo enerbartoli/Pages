@@ -189,6 +189,15 @@
   .voice-lang-btn.active { background: rgba(124,106,247,0.2); border-color: var(--accent); color: var(--accent2); }
   @keyframes voicePulse { 0%,100% { box-shadow: 0 0 0 0 rgba(248,113,113,0.4); } 50% { box-shadow: 0 0 0 14px rgba(248,113,113,0); } }
 
+  .balance-card { background: var(--surface); border: 1px solid rgba(74,222,128,0.25); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+  .balance-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .balance-value { font-size: 28px; font-weight: 600; font-family: 'DM Mono', monospace; color: var(--success); margin: 4px 0 2px; }
+  .balance-ring-wrap { position: relative; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+  .balance-pct { position: absolute; font-size: 11px; font-family: 'DM Mono', monospace; color: var(--text2); font-weight: 500; }
+  .balance-stats-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .balance-stat { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; flex: 1; min-width: 80px; }
+  .balance-stat-val { font-size: 13px; font-family: 'DM Mono', monospace; color: var(--text); margin-top: 3px; font-weight: 500; }
+
   ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 </style>
 </head>
@@ -320,6 +329,43 @@
         💡 Costs estimated from official Anthropic pricing:<br>
         <strong>Sonnet 4.6:</strong> $3/$15 · <strong>Sonnet + Thinking:</strong> $6/$15 · <strong>Opus 4.6:</strong> $5/$25 per MTok input/output.<br>
         For exact billing → <strong>console.anthropic.com → Settings → Billing</strong>
+      </div>
+      <div class="balance-card" id="balance-card">
+        <div class="balance-header">
+          <div style="flex:1">
+            <div class="u-label">API Credit Balance</div>
+            <div class="balance-value" id="balance-display">—</div>
+            <div class="u-sub" id="balance-sub">Set your starting balance below</div>
+          </div>
+          <div class="balance-ring-wrap">
+            <svg width="64" height="64" viewBox="0 0 64 64">
+              <circle cx="32" cy="32" r="26" fill="none" stroke="#2a2a3d" stroke-width="6"/>
+              <circle id="balance-ring" cx="32" cy="32" r="26" fill="none" stroke="#4ade80" stroke-width="6"
+                stroke-dasharray="163" stroke-dashoffset="163" stroke-linecap="round"
+                transform="rotate(-90 32 32)" style="transition:stroke-dashoffset 0.6s ease,stroke 0.4s"/>
+            </svg>
+            <span class="balance-pct" id="balance-pct"></span>
+          </div>
+        </div>
+        <div id="balance-spent-row" style="display:none;gap:12px" class="balance-stats-row">
+          <div class="balance-stat"><div class="u-label">Spent (MNEMO est.)</div><div class="balance-stat-val" id="bal-est-spent">—</div></div>
+          <div class="balance-stat"><div class="u-label">Since</div><div class="balance-stat-val" id="bal-since">—</div></div>
+        </div>
+        <div class="balance-input-row">
+          <span style="color:var(--text3);font-size:13px;flex-shrink:0">Starting $</span>
+          <input type="number" id="balance-input" placeholder="e.g. 18.50" step="0.01" min="0"
+            style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);font-family:inherit;font-size:13px;padding:7px 10px;outline:none;flex:1;min-width:0">
+          <button class="btn-secondary" style="flex:none;padding:7px 12px;white-space:nowrap" onclick="saveBalance()">💾 Save</button>
+          <button class="btn-secondary" style="flex:none;padding:7px 12px;white-space:nowrap;border-color:var(--danger);color:var(--danger)" onclick="resetBalance()">↺ Reset</button>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+          <div style="font-size:11px;color:var(--text3)">Estimated from tokens used in MNEMO</div>
+          <a href="https://console.anthropic.com/settings/billing" target="_blank"
+            style="display:inline-flex;align-items:center;gap:5px;background:rgba(124,106,247,0.12);border:1px solid rgba(124,106,247,0.3);border-radius:7px;color:var(--accent2);font-size:11px;font-family:inherit;padding:5px 11px;text-decoration:none;white-space:nowrap;transition:all 0.2s"
+            onmouseover="this.style.background='rgba(124,106,247,0.22)'" onmouseout="this.style.background='rgba(124,106,247,0.12)'">
+            🔗 Open Billing Console
+          </a>
+        </div>
       </div>
     </div>
   </div>
@@ -458,7 +504,7 @@ function switchView(view,tab) {
     window.dispatchEvent(new Event('resize'));
     if(view==='graph'){ resizeCanvas(); if(gNodes.length===0) loadGraph(); else drawGraph(); }
     if(view==='memories'&&memories.length===0) loadMemories();
-    if(view==='usage') renderUsage();
+    if(view==='usage') { renderUsage(); }
     if(view==='dashboard') loadDashboard();
   },50);
 }
@@ -712,7 +758,53 @@ async function saveToMem0(u,a){
   }catch(e){}
 }
 
-// ── USAGE
+// ── BALANCE
+function saveBalance() {
+  const val = parseFloat(document.getElementById('balance-input').value);
+  if (isNaN(val) || val < 0) return;
+  localStorage.setItem('mnemo_balance_start', val);
+  localStorage.setItem('mnemo_balance_ts', new Date().toISOString());
+  renderBalance();
+}
+
+function resetBalance() {
+  if (!confirm('Reset balance? This will clear the current tracking period.')) return;
+  localStorage.removeItem('mnemo_balance_start');
+  localStorage.removeItem('mnemo_balance_ts');
+  localStorage.removeItem('mnemo_balance_real_spent');
+  document.getElementById('balance-input').value = '';
+  renderBalance();
+}
+
+function renderBalance() {
+  const startBalance = parseFloat(localStorage.getItem('mnemo_balance_start') || '0');
+  const ts = localStorage.getItem('mnemo_balance_ts');
+  const tsMs = ts ? new Date(ts).getTime() : 0;
+  const estSpent = usageLog.filter(u => u.ts >= tsMs).reduce((s, u) => s + (u.cost || 0), 0);
+  const remaining = Math.max(0, startBalance - estSpent);
+  const pct = startBalance > 0 ? Math.round((remaining / startBalance) * 100) : 0;
+
+  document.getElementById('balance-display').textContent = startBalance > 0 ? `$${remaining.toFixed(2)}` : '—';
+  document.getElementById('balance-pct').textContent = startBalance > 0 ? `${pct}%` : '';
+  document.getElementById('balance-sub').textContent = startBalance > 0
+    ? `of $${startBalance.toFixed(2)} · ${pct}% remaining`
+    : 'Set your starting balance below';
+
+  const statsRow = document.getElementById('balance-spent-row');
+  if (startBalance > 0 && ts) {
+    statsRow.style.display = 'flex';
+    document.getElementById('bal-est-spent').textContent = `$${estSpent.toFixed(4)}`;
+    document.getElementById('bal-since').textContent = new Date(ts).toLocaleDateString('en-US', {month:'short',day:'numeric'});
+  } else {
+    statsRow.style.display = 'none';
+  }
+
+  const ring = document.getElementById('balance-ring');
+  ring.style.strokeDashoffset = startBalance > 0 ? 163 - (163 * pct / 100) : 163;
+  ring.style.stroke = pct > 50 ? '#4ade80' : pct > 20 ? '#fb923c' : '#f87171';
+  if (startBalance > 0) document.getElementById('balance-input').value = startBalance.toFixed(2);
+}
+
 function setUsagePeriod(p,el){usagePeriod=p;document.querySelectorAll('.period-chip').forEach(c=>c.classList.remove('active'));el.classList.add('active');renderUsage();}
 function filterLogs(){
   const now=Date.now();
@@ -722,6 +814,7 @@ function filterLogs(){
   return usageLog;
 }
 function renderUsage(){
+  renderBalance();
   const logs=filterLogs();
   const totalIn=logs.reduce((s,u)=>s+(u.inputTokens||0),0);
   const totalOut=logs.reduce((s,u)=>s+(u.outputTokens||0),0);
@@ -994,26 +1087,45 @@ function runSimulation(){
 function simulate(){
   const canvas=document.getElementById('graph-canvas'),cx=canvas.width/2,cy=canvas.height/2;
   const W=canvas.width,H=canvas.height;
-  const k=45,damping=0.70,gravity=0.12;
-  gNodes.forEach(n=>{n.vx*=damping;n.vy*=damping;});
+  const k=50, damping=0.55, gravity=0.18, MAX_V=4;
+
+  // Pin René at center — always
+  const rene=gNodes.find(n=>n.id==='rene');
+  if(rene&&gDragging!==rene){rene.x=cx;rene.y=cy;rene.vx=0;rene.vy=0;}
+
+  gNodes.forEach(n=>{if(n.id==='rene')return;n.vx*=damping;n.vy*=damping;});
+
+  // Repulsion between non-René nodes
   for(let i=0;i<gNodes.length;i++)for(let j=i+1;j<gNodes.length;j++){
-    const a=gNodes[i],b=gNodes[j],dx=b.x-a.x,dy=b.y-a.y,d=Math.sqrt(dx*dx+dy*dy)||1;
-    if(d>180)continue;
-    const f=(k*k)/d*0.5;
+    const a=gNodes[i],b=gNodes[j];
+    if(a.id==='rene'||b.id==='rene')continue;
+    const dx=b.x-a.x,dy=b.y-a.y,d=Math.sqrt(dx*dx+dy*dy)||1;
+    if(d>160)continue;
+    const f=(k*k)/d*0.4;
     a.vx-=dx/d*f;a.vy-=dy/d*f;b.vx+=dx/d*f;b.vy+=dy/d*f;
   }
+
+  // Edge attraction
   const idx={};gNodes.forEach(n=>idx[n.id]=n);
   gEdges.forEach(e=>{
     const a=idx[e.from],b=idx[e.to];if(!a||!b)return;
     const dx=b.x-a.x,dy=b.y-a.y,d=Math.sqrt(dx*dx+dy*dy)||1;
-    const ideal=k*1.5,f=(d-ideal)/d*0.45;
-    a.vx+=dx*f;a.vy+=dy*f;b.vx-=dx*f;b.vy-=dy*f;
+    const ideal=e.from==='rene'?100:60;
+    const f=(d-ideal)/d*0.3;
+    if(a.id!=='rene'){a.vx+=dx*f;a.vy+=dy*f;}
+    if(b.id!=='rene'){b.vx-=dx*f;b.vy-=dy*f;}
   });
+
+  // Gravity + clamp
   gNodes.forEach(n=>{
+    if(n.id==='rene')return;
     n.vx+=(cx-n.x)*gravity;n.vy+=(cy-n.y)*gravity;
+    // Hard velocity cap — prevents explosions
+    const spd=Math.sqrt(n.vx*n.vx+n.vy*n.vy);
+    if(spd>MAX_V){n.vx=n.vx/spd*MAX_V;n.vy=n.vy/spd*MAX_V;}
     if(gDragging!==n){n.x+=n.vx;n.y+=n.vy;}
-    n.x=Math.max(n.size+20,Math.min(W-n.size-20,n.x));
-    n.y=Math.max(n.size+28,Math.min(H-n.size-20,n.y));
+    n.x=Math.max(n.size+16,Math.min(W-n.size-16,n.x));
+    n.y=Math.max(n.size+24,Math.min(H-n.size-16,n.y));
   });
 }
 function drawGraph(){
