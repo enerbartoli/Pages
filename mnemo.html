@@ -251,7 +251,7 @@
 
   <div class="tabs">
     <div class="tab active" onclick="switchView('chat',this)">💬 Chat</div>
-    <div class="tab" onclick="switchView('dashboard',this)">📊 Dashboard</div>
+    <div class="tab" onclick="switchView('dashboard',this)">📊 Dash</div>
     <div class="tab" onclick="switchView('memories',this)">🧠 Memory</div>
     <div class="tab" onclick="switchView('graph',this)">🕸 Graph</div>
     <div class="tab" onclick="switchView('usage',this)">💰 Usage</div>
@@ -1171,6 +1171,12 @@ function runSimulation(){
   let steps=0;
   function tick(){simulate();drawGraph();if(steps++<400)gAnimFrame=requestAnimationFrame(tick);else gAnimFrame=null;}
   tick();
+  // Auto-nudge the largest node slightly to break the initial oscillation
+  setTimeout(()=>{
+    if(gDragging) return;
+    const largest=gNodes.filter(n=>n.id!=='rene').sort((a,b)=>b.size-a.size)[0];
+    if(largest){gDragging=largest;largest.x+=3;largest.y+=3;setTimeout(()=>{largest.vx=0;largest.vy=0;gDragging=null;},250);}
+  },600);
 }
 
 function simulate(){
