@@ -29,12 +29,12 @@
 
   /* APP */
   #app { display: none; flex-direction: column; height: 100dvh; }
-  .header { display: flex; align-items: center; justify-content: space-between; padding: 9px 14px; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; gap: 8px; flex-wrap: wrap; }
+  .header { display: flex; align-items: center; justify-content: space-between; padding: 9px 14px; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; gap: 8px; flex-wrap: nowrap; min-height: 48px; }
   .header-logo { font-size: 19px; font-weight: 600; letter-spacing: -1px; background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; flex-shrink: 0; }
-  .header-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .model-select { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text2); font-family: inherit; font-size: 11px; padding: 4px 8px; outline: none; cursor: pointer; transition: border-color 0.2s; }
+  .header-right { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; flex-shrink: 1; min-width: 0; }
+  .model-select { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text2); font-family: inherit; font-size: 11px; padding: 4px 8px; outline: none; cursor: pointer; transition: border-color 0.2s; max-width: 130px; text-overflow: ellipsis; }
   .model-select:focus { border-color: var(--accent); }
-  .header-status { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text3); }
+  .header-status { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text3); white-space: nowrap; flex-shrink: 0; }
   .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text3); flex-shrink: 0; }
   .status-dot.online { background: var(--success); }
 
@@ -198,6 +198,21 @@
   .balance-stat { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; flex: 1; min-width: 80px; }
   .balance-stat-val { font-size: 13px; font-family: 'DM Mono', monospace; color: var(--text); margin-top: 3px; font-weight: 500; }
 
+
+  /* MOBILE — prevent header overlap */
+  @media (max-width: 640px) {
+    .header { padding: 8px 10px; gap: 6px; }
+    .header-logo { font-size: 16px; }
+    .model-select { font-size: 10px; padding: 4px 6px; max-width: 110px; }
+    .header-status span { display: none; }
+    .header-status { gap: 0; }
+  }
+  @media (max-width: 380px) {
+    .header-logo { font-size: 14px; }
+    .model-select { max-width: 92px; font-size: 10px; }
+    .tab { font-size: 9px; padding: 9px 2px; }
+  }
+
   ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 </style>
 </head>
@@ -223,6 +238,7 @@
     <div class="header-logo">MNEMO</div>
     <div class="header-right">
       <select class="model-select" id="model-select" onchange="onModelChange()">
+        <option value="claude-haiku-4-5-20251001" selected>Haiku 4.5 (fast)</option>
         <option value="claude-sonnet-4-6">Sonnet 4.6</option>
         <option value="claude-opus-4-6">Opus 4.6</option>
       </select>
@@ -418,7 +434,7 @@
 <script>
 // ── STATE
 let ANTHROPIC_KEY='', MEM0_KEY='', USER_ID='rene_bartoli';
-let chatMessages=[], memories=[], selectedModel='claude-sonnet-4-6', usagePeriod='session';
+let chatMessages=[], memories=[], selectedModel='claude-haiku-4-5-20251001', usagePeriod='session';
 let ttsEnabled=false, isRecording=false, recognition=null;
 let selectedPeriod='today';
 let webSearchEnabled=false;
@@ -426,6 +442,7 @@ let thinkingEnabled=false;
 let gNodes=[], gEdges=[], gDragging=null, gHovered=null, gAnimFrame=null;
 
 const PRICING = {
+  'claude-haiku-4-5-20251001':  { in: 1,  out: 5  },
   'claude-sonnet-4-6':          { in: 3,  out: 15 },
   'claude-opus-4-6':            { in: 5,  out: 25 }
 };
@@ -453,7 +470,7 @@ try { usageLog = JSON.parse(localStorage.getItem('mnemo_usage')||'[]'); } catch(
 window._sessionStart = Date.now();
 
 function logUsage(model, inTok, outTok) {
-  const p = PRICING[model]||PRICING['claude-sonnet-4-6'];
+  const p = PRICING[model]||PRICING['claude-haiku-4-5-20251001'];
   usageLog.push({ ts: Date.now(), model, inputTokens: inTok, outputTokens: outTok, cost: (inTok/1e6*p.in)+(outTok/1e6*p.out) });
   try { localStorage.setItem('mnemo_usage', JSON.stringify(usageLog.slice(-500))); } catch(e){}
   if (document.getElementById('usage-view').classList.contains('active')) renderUsage();
@@ -468,14 +485,17 @@ function doLogin() {
   if(pass!=='Cati1618-'){ document.getElementById('login-error').style.display='block'; return; }
   if(!ak||!mk){ alert('Please enter API keys.'); return; }
   ANTHROPIC_KEY=ak; MEM0_KEY=mk; USER_ID=uid||'rene_bartoli';
-  sessionStorage.setItem('mnemo_ak',ak); sessionStorage.setItem('mnemo_mk',mk); sessionStorage.setItem('mnemo_uid',USER_ID);
+  localStorage.setItem('mnemo_ak',ak); localStorage.setItem('mnemo_mk',mk); localStorage.setItem('mnemo_uid',USER_ID);
   document.getElementById('login-screen').style.display='none';
   document.getElementById('app').style.display='flex';
   init();
 }
 
 window.addEventListener('load',()=>{
-  const ak=sessionStorage.getItem('mnemo_ak'),mk=sessionStorage.getItem('mnemo_mk'),uid=sessionStorage.getItem('mnemo_uid');
+  // Read from localStorage first (persistent), fall back to sessionStorage (legacy users)
+  const ak=localStorage.getItem('mnemo_ak')||sessionStorage.getItem('mnemo_ak');
+  const mk=localStorage.getItem('mnemo_mk')||sessionStorage.getItem('mnemo_mk');
+  const uid=localStorage.getItem('mnemo_uid')||sessionStorage.getItem('mnemo_uid');
   if(ak&&mk){ ANTHROPIC_KEY=ak; MEM0_KEY=mk; USER_ID=uid||'rene_bartoli'; document.getElementById('login-screen').style.display='none'; document.getElementById('app').style.display='flex'; init(); }
   document.getElementById('login-pass').addEventListener('keydown',e=>{ if(e.key==='Enter') doLogin(); });
   setupCanvasEvents();
@@ -499,7 +519,7 @@ function onModelChange() {
   selectedModel=document.getElementById('model-select').value;
   appendMsg('system','Model: '+getModelLabel(selectedModel));
 }
-function getModelLabel(m) { return {'claude-sonnet-4-6':'Sonnet 4.6','claude-opus-4-6':'Opus 4.6'}[m]||m; }
+function getModelLabel(m) { return {'claude-haiku-4-5-20251001':'Haiku 4.5','claude-sonnet-4-6':'Sonnet 4.6','claude-opus-4-6':'Opus 4.6'}[m]||m; }
 function getActualModel(m) { return m; }
 
 // ── TABS
@@ -678,10 +698,69 @@ function stopWaveform() {
 }
 
 // ── TTS
-function toggleTTS() { ttsEnabled=!ttsEnabled; document.getElementById('tts-switch').className='toggle-switch'+(ttsEnabled?' on':''); }
+let ttsVoices = [];
+function loadTTSVoices() {
+  if (!('speechSynthesis' in window)) return;
+  ttsVoices = window.speechSynthesis.getVoices();
+  if (ttsVoices.length === 0) {
+    window.speechSynthesis.onvoiceschanged = () => { ttsVoices = window.speechSynthesis.getVoices(); };
+  }
+}
+loadTTSVoices();
+
+function detectLang(text) {
+  if (/[áéíóúñ¿¡]|\b(que|para|con|por|los|las|este|esta|pero|cuando|donde|porque|también|así|pero|más|nada|todo|hola|gracias)\b/i.test(text)) return 'es';
+  return 'en';
+}
+
+function toggleTTS() {
+  if (!('speechSynthesis' in window)) {
+    appendMsg('system', '⚠️ Text-to-speech not supported in this browser.');
+    return;
+  }
+  ttsEnabled = !ttsEnabled;
+  document.getElementById('tts-switch').className='toggle-switch'+(ttsEnabled?' on':'');
+  if (ttsEnabled) {
+    // Refresh voices and play short test — also unlocks audio on iOS/Safari (gesture required)
+    if (ttsVoices.length === 0) ttsVoices = window.speechSynthesis.getVoices();
+    const test = new SpeechSynthesisUtterance('Voz activada');
+    test.lang = 'es-MX'; test.volume = 0.8; test.rate = 1.1;
+    const esVoice = ttsVoices.find(v => v.lang.startsWith('es'));
+    if (esVoice) test.voice = esVoice;
+    window.speechSynthesis.speak(test);
+    appendMsg('system','🔊 Voice responses ON');
+  } else {
+    window.speechSynthesis.cancel();
+    appendMsg('system','🔊 Voice responses OFF');
+  }
+}
 function toggleWebSearch() { webSearchEnabled=!webSearchEnabled; document.getElementById('ws-switch').className='toggle-switch'+(webSearchEnabled?' on':''); appendMsg('system', webSearchEnabled ? '🔍 Web search ON' : '🔍 Web search OFF'); }
 function toggleThinking() { thinkingEnabled=!thinkingEnabled; document.getElementById('think-switch').className='toggle-switch'+(thinkingEnabled?' on':''); appendMsg('system', thinkingEnabled ? '🧠 Thinking mode ON — deeper reasoning, higher cost' : '🧠 Thinking mode OFF'); }
-function speak(text) { if(!ttsEnabled||!window.speechSynthesis) return; window.speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(text.replace(/[#*`]/g,'')); u.lang=navigator.language||'es-US'; u.rate=1.05; window.speechSynthesis.speak(u); }
+function speak(text) {
+  if (!ttsEnabled || !('speechSynthesis' in window) || !text) return;
+  window.speechSynthesis.cancel();
+  // Strip markdown, code blocks, links
+  const cleaned = text
+    .replace(/```[\s\S]*?```/g,'')
+    .replace(/[#*`_~]/g,'')
+    .replace(/\[(.*?)\]\(.*?\)/g,'$1')
+    .replace(/\n+/g,'. ')
+    .trim();
+  if (!cleaned) return;
+  if (ttsVoices.length === 0) ttsVoices = window.speechSynthesis.getVoices();
+  const lang = detectLang(cleaned);
+  const targetLang = lang === 'es' ? 'es' : 'en';
+  const voice = ttsVoices.find(v => v.lang.startsWith(targetLang));
+  // Chunk by sentence — browsers truncate long utterances (esp. Chrome ~200 chars)
+  const chunks = cleaned.match(/[^.!?]+[.!?]+|.+$/g) || [cleaned];
+  chunks.forEach(chunk => {
+    const u = new SpeechSynthesisUtterance(chunk.trim());
+    if (voice) u.voice = voice;
+    u.lang = targetLang === 'es' ? 'es-MX' : 'en-US';
+    u.rate = 1.05; u.pitch = 1.0; u.volume = 1.0;
+    window.speechSynthesis.speak(u);
+  });
+}
 
 // ── CHAT
 async function sendMessage() {
@@ -717,8 +796,8 @@ function fmt(t) { return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>
 async function askClaude(msg,ctx) {
   const indicator=document.getElementById('web-indicator'); indicator.textContent='';
   const body={
-    model:getActualModel(selectedModel), max_tokens:thinkingEnabled?8000:1000,
-    system:`You are MNEMO, René's assistant. Answer concisely in the same language as the question. Use the memory below when relevant.\n\nMEMORY:\n${ctx}`,
+    model:getActualModel(selectedModel), max_tokens:thinkingEnabled?8000:600,
+    system:`You are MNEMO, René's assistant. CRITICAL: Be maximally concise. Answer in 2-4 sentences when possible. Skip preambles, restatements, and filler phrases. Use bullets only when listing 3+ items. Match the question's language. Reference memory below when directly relevant; ignore otherwise.\n\nMEMORY:\n${ctx}`,
     ...(webSearchEnabled ? {tools:[{type:'web_search_20250305',name:'web_search'}]} : {}),
     messages:[...chatMessages.slice(-5),{role:'user',content:msg}]
   };
@@ -873,7 +952,7 @@ async function generateSummary(){
     const allMems=await fetchMemories(500);
     const filtered=allMems.filter(m=>{const d=new Date(m.updated_at||m.created_at||'2020-01-01');return d>=new Date(from+'T00:00:00')&&d<=new Date(to+'T23:59:59');}).slice(0,60);
     if(!filtered.length){output.textContent=`No memories between ${from} and ${to}.`;return;}
-    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1000,messages:[{role:'user',content:`Create a clear structured summary of these memories from ${from} to ${to}. Include: key decisions, action items, people mentioned, open topics. Format for pasting as context into Claude.ai.\n\nMemories:\n${filtered.map(m=>`• ${(m.memory||'').substring(0,200)}`).join('\n')}`}]})});
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:800,messages:[{role:'user',content:`Create a clear structured summary of these memories from ${from} to ${to}. Include: key decisions, action items, people mentioned, open topics. Format for pasting as context into Claude.ai.\n\nMemories:\n${filtered.map(m=>`• ${(m.memory||'').substring(0,200)}`).join('\n')}`}]})});
     const data=await res.json();
     const summary=data.content?.filter(b=>b.type==='text').map(b=>b.text).join('')||'';
     output.textContent=`--- MNEMO CONTEXT SUMMARY ---\nPeriod: ${from} → ${to}\nGenerated: ${new Date().toLocaleString()}\n${'─'.repeat(40)}\n\n`+summary;
