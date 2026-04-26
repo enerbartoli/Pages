@@ -185,6 +185,8 @@
   .voice-transcript { font-size: 16px; color: var(--text); max-width: 320px; text-align: center; min-height: 24px; line-height: 1.5; }
   #voice-canvas { width: 280px; height: 80px; }
   .voice-stop-btn { background: var(--danger); border: none; border-radius: 50%; width: 56px; height: 56px; color: white; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 0 rgba(248,113,113,0.4); animation: voicePulse 1.5s infinite; }
+  .voice-lang-btn { background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; color: var(--text3); font-family: inherit; font-size: 13px; padding: 6px 14px; cursor: pointer; transition: all 0.2s; }
+  .voice-lang-btn.active { background: rgba(124,106,247,0.2); border-color: var(--accent); color: var(--accent2); }
   @keyframes voicePulse { 0%,100% { box-shadow: 0 0 0 0 rgba(248,113,113,0.4); } 50% { box-shadow: 0 0 0 14px rgba(248,113,113,0); } }
 
   ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
@@ -353,6 +355,10 @@
   <div class="voice-label">Listening...</div>
   <canvas id="voice-canvas"></canvas>
   <div class="voice-transcript" id="voice-transcript">Say something...</div>
+  <div style="display:flex;gap:10px;align-items:center">
+    <button class="voice-lang-btn active" id="lang-es" onclick="setVoiceLang('es-MX',this)">🇲🇽 ES</button>
+    <button class="voice-lang-btn" id="lang-en" onclick="setVoiceLang('en-US',this)">🇺🇸 EN</button>
+  </div>
   <button class="voice-stop-btn" onclick="stopRecording()">■</button>
 </div>
 
@@ -440,8 +446,18 @@ function switchView(view,tab) {
   },50);
 }
 
-// ── VOICE with waveform visualizer
-let audioCtx=null, analyser=null, micStream=null, voiceAnimFrame=null;
+let voiceLang = 'es-MX';
+
+function setVoiceLang(lang, el) {
+  voiceLang = lang;
+  document.querySelectorAll('.voice-lang-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  // Restart recognition with new lang if already recording
+  if (isRecording && recognition) {
+    try { recognition.stop(); } catch(e) {}
+    setTimeout(() => startRecording(), 150);
+  }
+}
 
 function toggleVoice() {
   if(!('webkitSpeechRecognition' in window)&&!('SpeechRecognition' in window)){ appendMsg('system','⚠️ Voice not supported.'); return; }
@@ -450,7 +466,7 @@ function toggleVoice() {
 
 function startRecording() {
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  recognition=new SR(); recognition.continuous=false; recognition.interimResults=true; recognition.lang=navigator.language||'es-US';
+  recognition=new SR(); recognition.continuous=false; recognition.interimResults=true; recognition.lang=voiceLang;
   recognition.onstart=()=>{
     isRecording=true;
     document.getElementById('mic-btn').classList.add('recording');
