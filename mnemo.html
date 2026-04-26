@@ -244,7 +244,7 @@
         <option value="claude-sonnet-4-6">Sonnet 4.6</option>
         <option value="claude-opus-4-6">Opus 4.6</option>
       </select>
-      <span class="version-badge" id="version-badge">V14.6</span>
+      <span class="version-badge" id="version-badge">V14.7</span>
       <div class="header-status">
         <div class="status-dot" id="status-dot"></div>
         <span id="status-text">connecting...</span>
@@ -442,7 +442,7 @@ let ttsEnabled=false, isRecording=false, recognition=null;
 let selectedPeriod='today';
 let webSearchEnabled=false;
 let thinkingEnabled=false;
-const MNEMO_VERSION='V14.6';
+const MNEMO_VERSION='V14.7';
 let gNodes=[], gEdges=[], gDragging=null, gHovered=null, gAnimFrame=null, gSimMaxV=4;
 
 const PRICING = {
@@ -1291,11 +1291,23 @@ function setupCanvasEvents(){
   canvas.onmousedown=e=>{const p=clientXY(e);gDragging=getNode(p.x,p.y);};
   canvas.onmouseup=()=>{gDragging=null;};
   canvas.onmouseleave=()=>{gDragging=null;gHovered=null;document.getElementById('graph-tooltip').style.display='none';};
-  canvas.onclick=e=>{const p=clientXY(e),n=getNode(p.x,p.y);if(n){switchView('chat',document.querySelectorAll('.tab')[0]);document.getElementById('chat-input').value=`Tell me about: ${n.fullLabel}`;sendMessage();}};
-  let tStart=0,tNode=null;
-  canvas.addEventListener('touchstart',e=>{e.preventDefault();const p=clientXY(e);tStart=Date.now();tNode=getNode(p.x,p.y);gDragging=tNode;},{passive:false});
-  canvas.addEventListener('touchmove',e=>{e.preventDefault();const p=clientXY(e);moveHandler(p.x,p.y);},{passive:false});
-  canvas.addEventListener('touchend',e=>{e.preventDefault();if(Date.now()-tStart<200&&tNode){switchView('chat',document.querySelectorAll('.tab')[0]);document.getElementById('chat-input').value=`Tell me about: ${tNode.fullLabel}`;sendMessage();}gDragging=null;gHovered=null;document.getElementById('graph-tooltip').style.display='none';},{passive:false});
+  canvas.ondblclick=e=>{const p=clientXY(e),n=getNode(p.x,p.y);if(n){switchView('chat',document.querySelectorAll('.tab')[0]);document.getElementById('chat-input').value=`Tell me about: ${n.fullLabel}`;sendMessage();}};
+  let tStart=0,tNode=null,tMoved=false,tLastTap=0,tLastNode=null;
+  canvas.addEventListener('touchstart',e=>{e.preventDefault();const p=clientXY(e);tStart=Date.now();tNode=getNode(p.x,p.y);gDragging=tNode;tMoved=false;},{passive:false});
+  canvas.addEventListener('touchmove',e=>{e.preventDefault();tMoved=true;const p=clientXY(e);moveHandler(p.x,p.y);},{passive:false});
+  canvas.addEventListener('touchend',e=>{
+    e.preventDefault();
+    if(!tMoved&&Date.now()-tStart<300&&tNode){
+      const now=Date.now();
+      if(now-tLastTap<400&&tLastNode===tNode){
+        switchView('chat',document.querySelectorAll('.tab')[0]);
+        document.getElementById('chat-input').value=`Tell me about: ${tNode.fullLabel}`;
+        sendMessage();
+        tLastTap=0;tLastNode=null;
+      } else {tLastTap=now;tLastNode=tNode;}
+    } else {tLastTap=0;tLastNode=null;}
+    gDragging=null;gHovered=null;document.getElementById('graph-tooltip').style.display='none';
+  },{passive:false});
 }
 window.addEventListener('resize',()=>{if(document.getElementById('graph-view').classList.contains('active')){resizeCanvas();if(gNodes.length)drawGraph();}});
 </script>
