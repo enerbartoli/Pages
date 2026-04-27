@@ -244,7 +244,7 @@
         <option value="claude-sonnet-4-6">Sonnet 4.6</option>
         <option value="claude-opus-4-6">Opus 4.6</option>
       </select>
-      <span class="version-badge" id="version-badge">V14.12</span>
+      <span class="version-badge" id="version-badge">V14.13</span>
       <div class="header-status">
         <div class="status-dot" id="status-dot"></div>
         <span id="status-text">connecting...</span>
@@ -442,7 +442,7 @@ let ttsEnabled=false, isRecording=false, recognition=null;
 let selectedPeriod='today';
 let webSearchEnabled=false;
 let thinkingEnabled=false;
-const MNEMO_VERSION='V14.12';
+const MNEMO_VERSION='V14.13';
 let gNodes=[], gEdges=[], gDragging=null, gHovered=null, gAnimFrame=null, gSimMaxV=4;
 
 const PRICING = {
@@ -1104,7 +1104,30 @@ function buildGraph(mems){
   // Garbage filters — skip memory artifact phrases
   const GARBAGE=/^(user|the user|user \(|participant|during the|the team|ben goddard|at the|in the|it was|this is|there |we |they |as |its |he |she |la |el |los |las )/i;
   // Concept/project words that are never part of a person's name
-  const NON_PERSON_WORDS=new Set(['workshop','planning','design','forecast','enrichment','automation','automatizacion','automatización','series','sprint','meeting','project','tool','analysis','report','work','team','group','program','process','system','strategy','management','development','research','training','review','session','update','task','activity','initiative','framework','solutions','services','operations','network','platform','integration','migration','deployment','implementation','demand','portfolio','linkedin','sales','market','statistical','americas','america','europe','north','south','east','west','pacific','capture','trans','transformation']);
+  const NON_PERSON_WORDS=new Set([
+    // Business/project concepts
+    'workshop','planning','design','forecast','enrichment','automation','automatizacion','automatización',
+    'series','sprint','meeting','project','tool','analysis','report','work','team','group','program',
+    'process','system','strategy','management','development','research','training','review','session',
+    'update','task','activity','initiative','framework','solutions','services','operations','network',
+    'platform','integration','migration','deployment','implementation','demand','portfolio','linkedin',
+    'sales','market','statistical','americas','america','europe','north','south','east','west','pacific',
+    'capture','trans','transformation',
+    // Abstract / business language
+    'index','stability','forward','carry','collaborative','together','improvement','innovation',
+    'performance','quality','efficiency','productivity','benchmark','metrics','pipeline','roadmap',
+    'milestone','timeline','budget','revenue','score','rate','model','approach','methodology',
+    'alignment','engagement','execution','delivery','proposal','presentation','discussion','summary',
+    'overview','agenda','action','items','follow','personal','global','regional','local','central',
+    'new','next','current','future','quarterly','annual','monthly','weekly','daily',
+    // Geographic indicators (city, state, country suffixes/words)
+    'city','island','valley','bay','coast','county','region','state','province','territory',
+    'district','town','village','mountain','river','lake','ocean','sea','gulf','port','cape',
+    'republic','kingdom','united','mexico','canada','rhode','texas','california',
+    // Role/title words
+    'director','manager','analyst','coordinator','specialist','consultant','engineer','developer',
+    'designer','leader','head','chief','officer','associate','senior','junior','principal',
+  ]);
 
   function isValidPerson(name){
     if(GARBAGE.test(name)) return false;
@@ -1123,6 +1146,41 @@ function buildGraph(mems){
       .replace(/[áéíóúü]/g,c=>({á:'a',é:'e',í:'i',ó:'o',ú:'u',ü:'u'}[c]||c))
       .replace(/[^a-z0-9 ]/g,'').trim()
       .split(/\s+/).slice(0,4).join('_');
+  }
+
+  const _ACCENT=c=>({á:'a',é:'e',í:'i',ó:'o',ú:'u',ü:'u'}[c]||c);
+  const _MSTOPS=new Set(['the','a','an','in','on','at','to','for','of','and','or','user','rene','rené','bartoli','during','from','with','was','that','this','has','have','been','they','their','who','what','when','where','how','its','our','your','his','her','el','la','los','las','en','de','se','le','un','una','con']);
+
+  // Extract a topic-focused key for a meeting memory.
+  // Skips leading person-name prefixes so "Renee Bartoli participated in the weekly..."
+  // becomes "weekly_..." instead of "renee_bartoli".
+  function meetingKey(text, projName){
+    // Prefer project_name when it exists and isn't a person/user artifact
+    if(projName&&!/^(user |the user |usuario |rene |rené |bartoli )/i.test(projName))
+      return normProjKey(projName);
+    const words=text.split(' ');
+    // Skip leading "FirstName LastName" pair
+    let start=0;
+    if(words.length>=2&&/^[A-Z][a-z]{1,14}$/.test(words[0])&&/^[A-Z][a-z]{1,14}$/.test(words[1])) start=2;
+    // Skip leading "User"/"René"/"Rene" token
+    if(/^(user|rene|rené|bartoli)/i.test(words[start]||'')) start++;
+    const sig=words.slice(start)
+      .map(w=>w.toLowerCase().replace(/[áéíóúü]/g,_ACCENT).replace(/[^a-z0-9]/g,''))
+      .filter(w=>w.length>3&&!_MSTOPS.has(w))
+      .slice(0,2);
+    return sig.join('_')||'other';
+  }
+
+  // Label for a meeting node — uses project_name when informative, otherwise
+  // skips the leading person-name/User prefix so the label shows the actual topic.
+  function meetingLabel(text, projName){
+    if(projName&&!/^(user |the user |usuario |rene |rené |bartoli )/i.test(projName))
+      return projName.substring(0,40);
+    const words=text.split(' ');
+    let start=0;
+    if(words.length>=2&&/^[A-Z][a-z]{1,14}$/.test(words[0])&&/^[A-Z][a-z]{1,14}$/.test(words[1])) start=2;
+    if(/^(user|rene|rené|bartoli)/i.test(words[start]||'')) start++;
+    return words.slice(start,start+5).join(' ');
   }
 
   const projectCount={},projectLabel={},projectMemIds={},personCount={},clusterMap={};
@@ -1147,14 +1205,8 @@ function buildGraph(mems){
     }
     const isMeeting=meta.type==='meeting'||/meeting|reunión|sprint|weekly|daily|sync/i.test(text);
     if(isMeeting){
-      // Use 2 significant words (skip stop words) for a more stable cluster key
-      const STOPS=new Set(['the','a','an','in','on','at','to','for','of','and','or','user','during','from','el','la','los','las','en','de']);
-      const sigWords=text.split(' ')
-        .map(w=>w.toLowerCase().replace(/[áéíóúü]/g,c=>({á:'a',é:'e',í:'i',ó:'o',ú:'u',ü:'u'}[c]||c)).replace(/[^a-z0-9]/g,''))
-        .filter(w=>w.length>2&&!STOPS.has(w))
-        .slice(0,2);
-      const clKey=sigWords.join('_')||'other';
-      if(!clusterMap[clKey])clusterMap[clKey]={id:'cl_'+clKey,count:0,label:text.split(' ').slice(0,4).join(' ')};
+      const clKey=meetingKey(text,projName);
+      if(!clusterMap[clKey])clusterMap[clKey]={id:'cl_'+clKey,count:0,label:meetingLabel(text,projName)};
       clusterMap[clKey].count++;
     }
     const people=(text.match(/\b([A-Z][a-záéíóúü]{2,14} [A-Z][a-záéíóúü]{2,14})\b/g)||[]).filter(isValidPerson);
@@ -1206,8 +1258,8 @@ function buildGraph(mems){
       projNodeMap[root]=pid;
     });
 
-  // People + cross-links to merged projects
-  Object.entries(personCount).sort((a,b)=>b[1]-a[1]).slice(0,15).forEach(([name,count])=>{
+  // People + cross-links to merged projects (require ≥2 mentions to filter one-off false positives)
+  Object.entries(personCount).filter(([,c])=>c>=2).sort((a,b)=>b[1]-a[1]).slice(0,15).forEach(([name,count])=>{
     const pid='person_'+name.replace(/\s/g,'_').toLowerCase().substring(0,20);
     addNode(pid,name,'person',7+Math.min(count/3,6));
     addEdge('rene',pid);
