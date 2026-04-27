@@ -244,7 +244,7 @@
         <option value="claude-sonnet-4-6">Sonnet 4.6</option>
         <option value="claude-opus-4-6">Opus 4.6</option>
       </select>
-      <span class="version-badge" id="version-badge">V14.11</span>
+      <span class="version-badge" id="version-badge">V14.12</span>
       <div class="header-status">
         <div class="status-dot" id="status-dot"></div>
         <span id="status-text">connecting...</span>
@@ -442,7 +442,7 @@ let ttsEnabled=false, isRecording=false, recognition=null;
 let selectedPeriod='today';
 let webSearchEnabled=false;
 let thinkingEnabled=false;
-const MNEMO_VERSION='V14.11';
+const MNEMO_VERSION='V14.12';
 let gNodes=[], gEdges=[], gDragging=null, gHovered=null, gAnimFrame=null, gSimMaxV=4;
 
 const PRICING = {
@@ -1125,12 +1125,13 @@ function buildGraph(mems){
       .split(/\s+/).slice(0,4).join('_');
   }
 
-  const projectCount={},projectLabel={},personCount={},clusterMap={};
+  const projectCount={},projectLabel={},projectMemIds={},personCount={},clusterMap={};
   const personProjects={}; // person -> Set of normalized project keys
   let userActionCount=0;
 
   mems.forEach(m=>{
     const meta=m.metadata||{},text=m.memory||'';
+    const memId=m.id||m.memory_id||text.substring(0,32);
     const projName=meta.project_name;
     if(projName){
       if(/^(user |the user |usuario )/i.test(projName)){
@@ -1140,6 +1141,8 @@ function buildGraph(mems){
         const k=normProjKey(projName);
         if(!projectLabel[k]) projectLabel[k]=projName; // keep first-seen as display label
         projectCount[k]=(projectCount[k]||0)+1;
+        if(!projectMemIds[k]) projectMemIds[k]=new Set();
+        projectMemIds[k].add(memId);
       }
     }
     const isMeeting=meta.type==='meeting'||/meeting|reunión|sprint|weekly|daily|sync/i.test(text);
@@ -1165,23 +1168,54 @@ function buildGraph(mems){
     });
   });
 
-  // Projects
-  const projNodeMap={};
-  Object.entries(projectCount).sort((a,b)=>b[1]-a[1]).slice(0,12).forEach(([key,count])=>{
-    const name=projectLabel[key];
-    const pid='proj_'+key.substring(0,20);
-    addNode(pid,name,'project',10+Math.min(count/4,8));
-    addEdge('rene',pid);
-    projNodeMap[key]=pid;
-  });
+  // --- Co-occurrence merging: Jaccard similarity on shared memory sets ---
+  // Projects that appear together in many of the same memories are the same concept.
+  const _par={};
+  Object.keys(projectMemIds).forEach(k=>_par[k]=k);
+  function _find(k){while(_par[k]!==k){_par[k]=_par[_par[k]];k=_par[k];}return k;}
+  function _union(a,b){
+    const ra=_find(a),rb=_find(b);if(ra===rb)return;
+    // merge smaller count into larger so the dominant label survives
+    const [big,small]=(projectCount[ra]||0)>=(projectCount[rb]||0)?[ra,rb]:[rb,ra];
+    _par[small]=big;
+    projectMemIds[big]=new Set([...projectMemIds[big],...projectMemIds[small]]);
+    projectCount[big]=(projectCount[big]||0)+(projectCount[small]||0);
+  }
+  // Only consider keys with ≥2 memories (single-memory keys are too noisy to compare)
+  const _cands=Object.keys(projectMemIds).filter(k=>projectMemIds[k].size>=2);
+  for(let i=0;i<_cands.length;i++){
+    for(let j=i+1;j<_cands.length;j++){
+      const ki=_find(_cands[i]),kj=_find(_cands[j]);
+      if(ki===kj)continue;
+      const sA=projectMemIds[ki],sB=projectMemIds[kj];
+      let inter=0;sA.forEach(id=>{if(sB.has(id))inter++;});
+      if(inter/(sA.size+sB.size-inter)>=0.4)_union(ki,kj);
+    }
+  }
 
-  // People + cross-links to projects
+  // Projects — one node per merged root, top 12 by combined count
+  const projNodeMap={};
+  Object.keys(projectCount)
+    .filter(k=>_find(k)===k) // only roots
+    .sort((a,b)=>projectCount[b]-projectCount[a]).slice(0,12)
+    .forEach(root=>{
+      const name=projectLabel[root],count=projectCount[root];
+      const pid='proj_'+root.substring(0,20);
+      addNode(pid,name,'project',10+Math.min(count/4,8));
+      addEdge('rene',pid);
+      projNodeMap[root]=pid;
+    });
+
+  // People + cross-links to merged projects
   Object.entries(personCount).sort((a,b)=>b[1]-a[1]).slice(0,15).forEach(([name,count])=>{
     const pid='person_'+name.replace(/\s/g,'_').toLowerCase().substring(0,20);
     addNode(pid,name,'person',7+Math.min(count/3,6));
     addEdge('rene',pid);
     const projs=personProjects[name];
-    if(projs) projs.forEach(pk=>{ const projId=projNodeMap[pk]; if(projId) addEdge(pid,projId); });
+    if(projs) projs.forEach(pk=>{
+      const projId=projNodeMap[_find(pk)]; // follow merge to root
+      if(projId) addEdge(pid,projId);
+    });
   });
 
   // Meetings
