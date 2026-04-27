@@ -244,7 +244,7 @@
         <option value="claude-sonnet-4-6">Sonnet 4.6</option>
         <option value="claude-opus-4-6">Opus 4.6</option>
       </select>
-      <span class="version-badge" id="version-badge">V15.2</span>
+      <span class="version-badge" id="version-badge">V16.2</span>
       <div class="header-status">
         <div class="status-dot" id="status-dot"></div>
         <span id="status-text">connecting...</span>
@@ -442,7 +442,7 @@ let ttsEnabled=false, isRecording=false, recognition=null;
 let selectedPeriod='today';
 let webSearchEnabled=false;
 let thinkingEnabled=false;
-const MNEMO_VERSION='V15.2';
+const MNEMO_VERSION='V16.2';
 let gNodes=[], gEdges=[], gDragging=null, gHovered=null, gAnimFrame=null, gSimMaxV=4;
 
 const PRICING = {
@@ -842,9 +842,28 @@ function renderMemories() {
 function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 function fmtDate(d){if(!d)return'';return new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
 function askAboutMemory(text){switchView('chat',document.querySelectorAll('.tab')[0]);document.getElementById('chat-input').value=`Tell me more about: ${text}`;sendMessage();}
+async function extractPeopleFromConversation(u,a){
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:120,
+        messages:[{role:'user',content:`List ONLY real person names (first+last) mentioned in this conversation. Exclude: companies, projects, concepts, tools, job titles, places.\nReturn ONLY JSON: {"people":["Name"]}\nIf none, return: {"people":[]}\n\nUser: ${u.substring(0,400)}\nAssistant: ${a.substring(0,400)}`}]})});
+    if(!res.ok) return [];
+    const data=await res.json();
+    const text=data.content?.[0]?.text||'{}';
+    const match=text.match(/\{[\s\S]*\}/);
+    if(!match) return [];
+    const parsed=JSON.parse(match[0]);
+    return Array.isArray(parsed.people)?parsed.people.filter(p=>typeof p==='string'&&p.includes(' ')):[];
+  }catch(e){return [];}
+}
+
 async function saveToMem0(u,a){
   try{
-    await fetch('https://api.mem0.ai/v1/memories/',{method:'POST',headers:{'Authorization':`Token ${MEM0_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({messages:[{role:'user',content:u},{role:'assistant',content:a}],user_id:USER_ID})});
+    const people=await extractPeopleFromConversation(u,a);
+    const body={messages:[{role:'user',content:u},{role:'assistant',content:a}],user_id:USER_ID};
+    if(people.length>0) body.metadata={people};
+    await fetch('https://api.mem0.ai/v1/memories/',{method:'POST',headers:{'Authorization':`Token ${MEM0_KEY}`,'Content-Type':'application/json'},body:JSON.stringify(body)});
     // Increment count locally — avoid expensive refetch after every message
     const cnt=parseInt(document.getElementById('mem-count').textContent)||0;
     document.getElementById('mem-count').textContent=cnt+1;
@@ -1191,14 +1210,6 @@ function buildGraph(mems){
   const personProjects={}; // person -> Set of normalized project keys
   let userActionCount=0;
 
-  // SEMANTIC FILTERING: Extract people only from professional_details + technology categories
-  // This provides context: we know these memories discuss professional work where real people appear
-  const professionalMemories=mems.filter(m=>{
-    const cats=Array.isArray(m.categories)?m.categories:[];
-    return cats.some(c=>c==='professional_details'||c==='technology'||c==='milestones');
-  });
-
-  // Separate non-professional memories for project/meeting extraction only
   mems.forEach(m=>{
     const meta=m.metadata||{},text=m.memory||'';
     const memId=m.id||m.memory_id||text.substring(0,32);
@@ -1220,9 +1231,26 @@ function buildGraph(mems){
       if(!clusterMap[clKey])clusterMap[clKey]={id:'cl_'+clKey,count:0,label:meetingLabel(text,projName)};
       clusterMap[clKey].count++;
     }
+
+    // PASS 1 — Semantic: use Claude-verified people stored in metadata at save time
+    if(Array.isArray(meta.people)&&meta.people.length>0){
+      meta.people.forEach(name=>{
+        if(/René|Rene|Bartoli/i.test(name)) return;
+        personCount[name]=(personCount[name]||0)+1;
+        if(projName&&!/^(user |the user |usuario )/i.test(projName)){
+          if(!personProjects[name]) personProjects[name]=new Set();
+          personProjects[name].add(normProjKey(projName));
+        }
+      });
+    }
   });
 
-  // People extraction only from professional/technology memories (semantic context)
+  // PASS 2 — Regex fallback only for legacy memories without Claude-verified metadata
+  const professionalMemories=mems.filter(m=>{
+    if(Array.isArray(m.metadata?.people)) return false; // already handled semantically
+    const cats=Array.isArray(m.categories)?m.categories:[];
+    return cats.some(c=>c==='professional_details'||c==='technology'||c==='milestones');
+  });
   professionalMemories.forEach(m=>{
     const meta=m.metadata||{},text=m.memory||'';
     const projName=meta.project_name;
