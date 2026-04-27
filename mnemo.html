@@ -244,7 +244,7 @@
         <option value="claude-sonnet-4-6">Sonnet 4.6</option>
         <option value="claude-opus-4-6">Opus 4.6</option>
       </select>
-      <span class="version-badge" id="version-badge">V31.1</span>
+      <span class="version-badge" id="version-badge">V15.1</span>
       <div class="header-status">
         <div class="status-dot" id="status-dot"></div>
         <span id="status-text">connecting...</span>
@@ -442,7 +442,7 @@ let ttsEnabled=false, isRecording=false, recognition=null;
 let selectedPeriod='today';
 let webSearchEnabled=false;
 let thinkingEnabled=false;
-const MNEMO_VERSION='V31.1';
+const MNEMO_VERSION='V15.1';
 let gNodes=[], gEdges=[], gDragging=null, gHovered=null, gAnimFrame=null, gSimMaxV=4;
 
 const PRICING = {
@@ -1076,22 +1076,6 @@ async function loadGraph(){
   try{
     const mems=await fetchMemories(300);
     // === DEBUG TEMPORAL: inspeccionar shape de Mem0 ===
-    console.log('=== MEM0 SCHEMA INSPECTION ===');
-    console.log('Total memories:', mems.length);
-    console.log('Sample memory[0] (full object):', mems[0]);
-    console.log('All top-level fields in mems[0]:', Object.keys(mems[0]||{}));
-    const withCategories=mems.filter(m=>Array.isArray(m.categories)&&m.categories.length>0);
-    console.log('Memories with categories[] populated:', withCategories.length, '/', mems.length);
-    if(withCategories.length>0){
-      console.log('Sample categories from first 5:', withCategories.slice(0,5).map(m=>m.categories));
-      const allCats=new Set();
-      withCategories.forEach(m=>m.categories.forEach(c=>allCats.add(c)));
-      console.log('Unique categories across all memories:', [...allCats]);
-    }
-    const withEntities=mems.filter(m=>m.entities||m.metadata?.entities);
-    console.log('Memories with entities field:', withEntities.length);
-    if(withEntities.length>0) console.log('Sample entities:', withEntities[0].entities||withEntities[0].metadata?.entities);
-    console.log('=== END INSPECTION ===');
     buildGraph(mems);runSimulation();
   }
   catch(e){ctx.fillText('Error loading',canvas.width/2,canvas.height/2);}
@@ -1140,13 +1124,14 @@ function buildGraph(mems){
     'alignment','engagement','execution','delivery','proposal','presentation','discussion','summary',
     'overview','agenda','action','items','follow','personal','global','regional','local','central',
     'new','next','current','future','quarterly','annual','monthly','weekly','daily',
-    // Geographic indicators (city, state, country suffixes/words)
+    // Geographic indicators
     'city','island','valley','bay','coast','county','region','state','province','territory',
     'district','town','village','mountain','river','lake','ocean','sea','gulf','port','cape',
     'republic','kingdom','united','mexico','canada','rhode','texas','california',
-    // Role/title words
+    // Role/title words + known false positives from user feedback
     'director','manager','analyst','coordinator','specialist','consultant','engineer','developer',
     'designer','leader','head','chief','officer','associate','senior','junior','principal',
+    'must','have','owner','field','logility',
   ]);
 
   function isValidPerson(name){
@@ -1155,7 +1140,6 @@ function buildGraph(mems){
     if(parts.length<2||parts.length>3) return false;
     if(name.length>28) return false;
     if(parts.some(p=>p.length<2)) return false;
-    // Reject if any word is a known concept/non-person word
     if(parts.some(p=>NON_PERSON_WORDS.has(p.toLowerCase()))) return false;
     return true;
   }
@@ -1207,17 +1191,24 @@ function buildGraph(mems){
   const personProjects={}; // person -> Set of normalized project keys
   let userActionCount=0;
 
+  // SEMANTIC FILTERING: Extract people only from professional_details + technology categories
+  // This provides context: we know these memories discuss professional work where real people appear
+  const professionalMemories=mems.filter(m=>{
+    const cats=Array.isArray(m.categories)?m.categories:[];
+    return cats.some(c=>c==='professional_details'||c==='technology'||c==='milestones');
+  });
+
+  // Separate non-professional memories for project/meeting extraction only
   mems.forEach(m=>{
     const meta=m.metadata||{},text=m.memory||'';
     const memId=m.id||m.memory_id||text.substring(0,32);
     const projName=meta.project_name;
     if(projName){
       if(/^(user |the user |usuario )/i.test(projName)){
-        // "User recorded/noted/participated/..." are memory artifacts, not real projects
         userActionCount++;
       } else {
         const k=normProjKey(projName);
-        if(!projectLabel[k]) projectLabel[k]=projName; // keep first-seen as display label
+        if(!projectLabel[k]) projectLabel[k]=projName;
         projectCount[k]=(projectCount[k]||0)+1;
         if(!projectMemIds[k]) projectMemIds[k]=new Set();
         projectMemIds[k].add(memId);
@@ -1229,6 +1220,12 @@ function buildGraph(mems){
       if(!clusterMap[clKey])clusterMap[clKey]={id:'cl_'+clKey,count:0,label:meetingLabel(text,projName)};
       clusterMap[clKey].count++;
     }
+  });
+
+  // People extraction only from professional/technology memories (semantic context)
+  professionalMemories.forEach(m=>{
+    const meta=m.metadata||{},text=m.memory||'';
+    const projName=meta.project_name;
     const people=(text.match(/\b([A-Z][a-záéíóúü]{2,14} [A-Z][a-záéíóúü]{2,14})\b/g)||[]).filter(isValidPerson);
     people.forEach(name=>{
       if(/René|Rene|Bartoli/.test(name)) return;
