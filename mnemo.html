@@ -244,7 +244,7 @@
         <option value="claude-sonnet-4-6">Sonnet 4.6</option>
         <option value="claude-opus-4-6">Opus 4.6</option>
       </select>
-      <span class="version-badge" id="version-badge">V14.7</span>
+      <span class="version-badge" id="version-badge">V14.12</span>
       <div class="header-status">
         <div class="status-dot" id="status-dot"></div>
         <span id="status-text">connecting...</span>
@@ -442,7 +442,7 @@ let ttsEnabled=false, isRecording=false, recognition=null;
 let selectedPeriod='today';
 let webSearchEnabled=false;
 let thinkingEnabled=false;
-const MNEMO_VERSION='V14.7';
+const MNEMO_VERSION='V14.12';
 let gNodes=[], gEdges=[], gDragging=null, gHovered=null, gAnimFrame=null, gSimMaxV=4;
 
 const PRICING = {
@@ -1103,31 +1103,57 @@ function buildGraph(mems){
 
   // Garbage filters — skip memory artifact phrases
   const GARBAGE=/^(user|the user|user \(|participant|during the|the team|ben goddard|at the|in the|it was|this is|there |we |they |as |its |he |she |la |el |los |las )/i;
+  // Concept/project words that are never part of a person's name
+  const NON_PERSON_WORDS=new Set(['workshop','planning','design','forecast','enrichment','automation','automatizacion','automatización','series','sprint','meeting','project','tool','analysis','report','work','team','group','program','process','system','strategy','management','development','research','training','review','session','update','task','activity','initiative','framework','solutions','services','operations','network','platform','integration','migration','deployment','implementation','demand','portfolio','linkedin','sales','market','statistical','americas','america','europe','north','south','east','west','pacific','capture','trans','transformation']);
 
   function isValidPerson(name){
     if(GARBAGE.test(name)) return false;
     const parts=name.trim().split(' ');
     if(parts.length<2||parts.length>3) return false;
     if(name.length>28) return false;
-    // Each part should be a short word, not a phrase fragment
     if(parts.some(p=>p.length<2)) return false;
+    // Reject if any word is a known concept/non-person word
+    if(parts.some(p=>NON_PERSON_WORDS.has(p.toLowerCase()))) return false;
     return true;
   }
 
-  const projectCount={},personCount={},clusterMap={};
-  const personProjects={}; // person -> Set of project names
+  // Normalize project name to a stable key (lowercase, no accents, first 4 words)
+  function normProjKey(name){
+    return name.toLowerCase()
+      .replace(/[áéíóúü]/g,c=>({á:'a',é:'e',í:'i',ó:'o',ú:'u',ü:'u'}[c]||c))
+      .replace(/[^a-z0-9 ]/g,'').trim()
+      .split(/\s+/).slice(0,4).join('_');
+  }
+
+  const projectCount={},projectLabel={},projectMemIds={},personCount={},clusterMap={};
+  const personProjects={}; // person -> Set of normalized project keys
+  let userActionCount=0;
 
   mems.forEach(m=>{
     const meta=m.metadata||{},text=m.memory||'';
+    const memId=m.id||m.memory_id||text.substring(0,32);
     const projName=meta.project_name;
     if(projName){
-      const k=projName.substring(0,30);
-      projectCount[k]=(projectCount[k]||0)+1;
+      if(/^(user |the user |usuario )/i.test(projName)){
+        // "User recorded/noted/participated/..." are memory artifacts, not real projects
+        userActionCount++;
+      } else {
+        const k=normProjKey(projName);
+        if(!projectLabel[k]) projectLabel[k]=projName; // keep first-seen as display label
+        projectCount[k]=(projectCount[k]||0)+1;
+        if(!projectMemIds[k]) projectMemIds[k]=new Set();
+        projectMemIds[k].add(memId);
+      }
     }
     const isMeeting=meta.type==='meeting'||/meeting|reunión|sprint|weekly|daily|sync/i.test(text);
     if(isMeeting){
-      const words=text.split(' ').slice(0,3).join(' ').toLowerCase().replace(/[^a-z0-9 ]/g,'').trim();
-      const clKey=(words.replace(/\s+/g,'_').substring(0,25))||'other';
+      // Use 2 significant words (skip stop words) for a more stable cluster key
+      const STOPS=new Set(['the','a','an','in','on','at','to','for','of','and','or','user','during','from','el','la','los','las','en','de']);
+      const sigWords=text.split(' ')
+        .map(w=>w.toLowerCase().replace(/[áéíóúü]/g,c=>({á:'a',é:'e',í:'i',ó:'o',ú:'u',ü:'u'}[c]||c)).replace(/[^a-z0-9]/g,''))
+        .filter(w=>w.length>2&&!STOPS.has(w))
+        .slice(0,2);
+      const clKey=sigWords.join('_')||'other';
       if(!clusterMap[clKey])clusterMap[clKey]={id:'cl_'+clKey,count:0,label:text.split(' ').slice(0,4).join(' ')};
       clusterMap[clKey].count++;
     }
@@ -1135,29 +1161,61 @@ function buildGraph(mems){
     people.forEach(name=>{
       if(/René|Rene|Bartoli/.test(name)) return;
       personCount[name]=(personCount[name]||0)+1;
-      if(projName){
+      if(projName&&!/^(user |the user |usuario )/i.test(projName)){
         if(!personProjects[name]) personProjects[name]=new Set();
-        personProjects[name].add(projName.substring(0,30));
+        personProjects[name].add(normProjKey(projName));
       }
     });
   });
 
-  // Projects
-  const projNodeMap={};
-  Object.entries(projectCount).sort((a,b)=>b[1]-a[1]).slice(0,12).forEach(([name,count])=>{
-    const pid='proj_'+name.replace(/\s+/g,'_').toLowerCase().substring(0,20);
-    addNode(pid,name,'project',10+Math.min(count/4,8));
-    addEdge('rene',pid);
-    projNodeMap[name]=pid;
-  });
+  // --- Co-occurrence merging: Jaccard similarity on shared memory sets ---
+  // Projects that appear together in many of the same memories are the same concept.
+  const _par={};
+  Object.keys(projectMemIds).forEach(k=>_par[k]=k);
+  function _find(k){while(_par[k]!==k){_par[k]=_par[_par[k]];k=_par[k];}return k;}
+  function _union(a,b){
+    const ra=_find(a),rb=_find(b);if(ra===rb)return;
+    // merge smaller count into larger so the dominant label survives
+    const [big,small]=(projectCount[ra]||0)>=(projectCount[rb]||0)?[ra,rb]:[rb,ra];
+    _par[small]=big;
+    projectMemIds[big]=new Set([...projectMemIds[big],...projectMemIds[small]]);
+    projectCount[big]=(projectCount[big]||0)+(projectCount[small]||0);
+  }
+  // Only consider keys with ≥2 memories (single-memory keys are too noisy to compare)
+  const _cands=Object.keys(projectMemIds).filter(k=>projectMemIds[k].size>=2);
+  for(let i=0;i<_cands.length;i++){
+    for(let j=i+1;j<_cands.length;j++){
+      const ki=_find(_cands[i]),kj=_find(_cands[j]);
+      if(ki===kj)continue;
+      const sA=projectMemIds[ki],sB=projectMemIds[kj];
+      let inter=0;sA.forEach(id=>{if(sB.has(id))inter++;});
+      if(inter/(sA.size+sB.size-inter)>=0.4)_union(ki,kj);
+    }
+  }
 
-  // People + cross-links to projects
+  // Projects — one node per merged root, top 12 by combined count
+  const projNodeMap={};
+  Object.keys(projectCount)
+    .filter(k=>_find(k)===k) // only roots
+    .sort((a,b)=>projectCount[b]-projectCount[a]).slice(0,12)
+    .forEach(root=>{
+      const name=projectLabel[root],count=projectCount[root];
+      const pid='proj_'+root.substring(0,20);
+      addNode(pid,name,'project',10+Math.min(count/4,8));
+      addEdge('rene',pid);
+      projNodeMap[root]=pid;
+    });
+
+  // People + cross-links to merged projects
   Object.entries(personCount).sort((a,b)=>b[1]-a[1]).slice(0,15).forEach(([name,count])=>{
     const pid='person_'+name.replace(/\s/g,'_').toLowerCase().substring(0,20);
     addNode(pid,name,'person',7+Math.min(count/3,6));
     addEdge('rene',pid);
     const projs=personProjects[name];
-    if(projs) projs.forEach(pn=>{ const projId=projNodeMap[pn]; if(projId) addEdge(pid,projId); });
+    if(projs) projs.forEach(pk=>{
+      const projId=projNodeMap[_find(pk)]; // follow merge to root
+      if(projId) addEdge(pid,projId);
+    });
   });
 
   // Meetings
@@ -1166,6 +1224,12 @@ function buildGraph(mems){
     addNode(c.id,label,'cluster',8+Math.min(c.count,10));
     addEdge('rene',c.id);
   });
+
+  // All "User recorded/noted/participated/..." memories merged into one activity node
+  if(userActionCount>0){
+    addNode('user_activity','User Activity ('+userActionCount+')','cluster',8+Math.min(userActionCount/5,10));
+    addEdge('rene','user_activity');
+  }
 
   gNodes=Object.values(nodeMap);
 }
