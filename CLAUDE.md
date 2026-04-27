@@ -15,12 +15,17 @@ Esto garantiza que `MNEMO_VERSION` en `mnemo.html` se actualice automáticamente
 
 ## Control de versiones
 Formato: `V{major}.{minor}`
-- **major** = número de commits en `main` (cada merge/upload a main)
+- **major** = `(commits en main) - 16` — el offset de 16 compensa los 14 uploads manuales de la era pre-automation más 2 commits de setup que existían antes de formalizar el sistema
 - **minor** = número de commits en la branch actual desde el último merge a main (incluyendo el commit en curso)
 
-Ejemplo: `V14.6` → 14 versiones subidas a main, 6to cambio en la branch actual.
+Ejemplo: `V15.1` → primera iteración de la era semántica (V15 = main tiene 31 commits, 31-16=15).
 
 El hook `scripts/update-version.sh` calcula y escribe el número automáticamente antes de cada `git commit`. Nunca edites `MNEMO_VERSION` a mano.
+
+### Merge strategy — OBLIGATORIO
+Siempre mergear PRs con **"Squash and merge"** en GitHub (no "Create a merge commit").
+
+Razón: "Create a merge commit" añade 2 commits a main (los commits de la branch + el merge commit), lo que causa saltos de versión (V15 → V17 en lugar de V15 → V16). Con "Squash and merge" cada PR añade exactamente 1 commit a main → versiones secuenciales limpias.
 
 ## Branch de desarrollo
 Crear siempre una branch descriptiva desde main. Nunca commitear directo a main.

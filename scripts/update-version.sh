@@ -4,6 +4,7 @@
 # Used as .git/hooks/pre-commit — see CLAUDE.md for setup instructions.
 
 MAIN=$(git rev-list --count origin/main 2>/dev/null || git rev-list --count main 2>/dev/null || echo "0")
+MAIN=$((MAIN - 16))  # Offset to align with pre-automation version baseline (V14 = 14 upload sessions)
 BRANCH=$(git rev-list origin/main..HEAD --count 2>/dev/null || git rev-list main..HEAD --count 2>/dev/null || echo "0")
 VER="V${MAIN}.$((BRANCH + 1))"
 
