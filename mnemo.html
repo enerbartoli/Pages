@@ -249,7 +249,7 @@
         <option value="claude-sonnet-4-6">Sonnet 4.6</option>
         <option value="claude-opus-4-6">Opus 4.6</option>
       </select>
-      <span class="version-badge" id="version-badge">V19.3</span>
+      <span class="version-badge" id="version-badge">V19.4</span>
       <div class="header-status">
         <div class="status-dot" id="status-dot"></div>
         <span id="status-text">connecting...</span>
@@ -452,7 +452,7 @@ let selectedPeriod='today';
 let webSearchEnabled=false;
 let thinkingEnabled=false;
 let detailEnabled=false;
-const MNEMO_VERSION='V19.3';
+const MNEMO_VERSION='V19.4';
 let gNodes=[], gEdges=[], gDragging=null, gHovered=null, gAnimFrame=null, gSimMaxV=4;
 
 const PRICING = {
@@ -1016,12 +1016,20 @@ function copySummary(){navigator.clipboard.writeText(document.getElementById('su
 
 // ── DASHBOARD
 let dashboardMems=[], dashboardConfig=null;
+function _dcLoad(){ try{return JSON.parse(localStorage.getItem('mnemo_dash_cfg')||'{}')}catch(e){return{}} }
+function _dcSave(meta){ try{localStorage.setItem('mnemo_dash_cfg',JSON.stringify(meta))}catch(e){} }
+
 async function loadDashboard() {
   const content=document.getElementById('dash-content');
   content.innerHTML='<div class="empty-state"><div class="icon">⏳</div>Loading...</div>';
+  // Apply localStorage config immediately so state survives refresh
+  const local=_dcLoad();
+  if(local.hidden_projects||local.priority_projects)
+    dashboardConfig={id:dashboardConfig?.id||null,memory:'MNEMO dashboard configuration.',metadata:{type:'dashboard_config',...local}};
   try {
     const mems=await fetchMemories(500);
-    dashboardConfig=mems.find(m=>m.metadata?.type==='dashboard_config')||null;
+    const mem0Cfg=mems.find(m=>m.metadata?.type==='dashboard_config');
+    if(mem0Cfg){ dashboardConfig=mem0Cfg; _dcSave(mem0Cfg.metadata); }
     renderDashboard(mems);
   } catch(e){ content.innerHTML=`<div class="empty-state"><div class="icon">⚠️</div>${e.message}</div>`; }
 }
@@ -1132,7 +1140,7 @@ function renderDashboard(mems) {
 
 async function saveDashboardConfig(newMeta) {
   const meta={type:'dashboard_config',...newMeta};
-  // Optimistic update — re-render immediately, persist to Mem0 in background
+  _dcSave(meta); // localStorage first — survives refresh regardless of Mem0
   const prevConfig=dashboardConfig;
   dashboardConfig=dashboardConfig
     ? {...dashboardConfig, metadata:meta}
