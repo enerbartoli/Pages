@@ -244,7 +244,7 @@
         <option value="claude-sonnet-4-6">Sonnet 4.6</option>
         <option value="claude-opus-4-6">Opus 4.6</option>
       </select>
-      <span class="version-badge" id="version-badge">V18.1</span>
+      <span class="version-badge" id="version-badge">V19.2</span>
       <div class="header-status">
         <div class="status-dot" id="status-dot"></div>
         <span id="status-text">connecting...</span>
@@ -279,6 +279,10 @@
           <div class="tts-toggle" onclick="toggleThinking()" title="Thinking mode — more powerful but expensive">
             <div class="toggle-switch" id="think-switch"></div>
             <span style="font-size:13px">🧠</span>
+          </div>
+          <div class="tts-toggle" onclick="toggleDetail()" title="Detail mode — full responses, higher token usage">
+            <div class="toggle-switch" id="detail-switch"></div>
+            <span style="font-size:13px">📝</span>
           </div>
           <button class="summary-btn" onclick="openSummary()">📋 Export</button>
         </div>
@@ -442,7 +446,8 @@ let ttsEnabled=false, isRecording=false, recognition=null;
 let selectedPeriod='today';
 let webSearchEnabled=false;
 let thinkingEnabled=false;
-const MNEMO_VERSION='V18.1';
+let detailEnabled=false;
+const MNEMO_VERSION='V19.2';
 let gNodes=[], gEdges=[], gDragging=null, gHovered=null, gAnimFrame=null, gSimMaxV=4;
 
 const PRICING = {
@@ -740,6 +745,7 @@ function toggleTTS() {
 }
 function toggleWebSearch() { webSearchEnabled=!webSearchEnabled; document.getElementById('ws-switch').className='toggle-switch'+(webSearchEnabled?' on':''); appendMsg('system', webSearchEnabled ? '🔍 Web search ON' : '🔍 Web search OFF'); }
 function toggleThinking() { thinkingEnabled=!thinkingEnabled; document.getElementById('think-switch').className='toggle-switch'+(thinkingEnabled?' on':''); appendMsg('system', thinkingEnabled ? '🧠 Thinking mode ON — deeper reasoning, higher cost' : '🧠 Thinking mode OFF'); }
+function toggleDetail() { detailEnabled=!detailEnabled; document.getElementById('detail-switch').className='toggle-switch'+(detailEnabled?' on':''); appendMsg('system', detailEnabled ? '📝 Detail mode ON — full responses' : '📝 Detail mode OFF — concise responses'); }
 function speak(text) {
   if (!ttsEnabled || !('speechSynthesis' in window) || !text) return;
   window.speechSynthesis.cancel();
@@ -800,8 +806,8 @@ function fmt(t) { return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>
 async function askClaude(msg,ctx) {
   const indicator=document.getElementById('web-indicator'); indicator.textContent='';
   const body={
-    model:getActualModel(selectedModel), max_tokens:thinkingEnabled?8000:600,
-    system:`You are MNEMO, René's assistant. CRITICAL: Be maximally concise. Answer in 2-4 sentences when possible. Skip preambles, restatements, and filler phrases. Use bullets only when listing 3+ items. Match the question's language. Reference memory below when directly relevant; ignore otherwise.\n\nMEMORY:\n${ctx}`,
+    model:getActualModel(selectedModel), max_tokens:thinkingEnabled?8000:detailEnabled?3000:1200,
+    system:`You are MNEMO, René's assistant. ${detailEnabled?'Provide complete, well-structured responses. Use headers and bullets when helpful. Do not truncate.':'CRITICAL: Be maximally concise. Answer in 2-4 sentences when possible. Skip preambles and filler. Use bullets only for 3+ items.'} Match the question's language. Reference memory below when directly relevant; ignore otherwise.\n\nMEMORY:\n${ctx}`,
     ...(webSearchEnabled ? {tools:[{type:'web_search_20250305',name:'web_search'}]} : {}),
     messages:[...chatMessages.slice(-5),{role:'user',content:msg}]
   };
