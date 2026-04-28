@@ -169,11 +169,11 @@
   .project-row:hover .project-name { color: var(--accent2); }
   .project-name { font-size: 13px; color: var(--text); flex: 1; cursor: pointer; }
   .project-count { font-size: 11px; color: var(--text3); background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 2px 9px; white-space: nowrap; }
-  .project-row-actions { display: flex; gap: 2px; opacity: 0; transition: opacity 0.15s; }
-  .project-row:hover .project-row-actions { opacity: 1; }
-  .proj-btn { background: none; border: none; cursor: pointer; font-size: 13px; padding: 2px 4px; opacity: 0.5; line-height: 1; }
-  .proj-btn:hover { opacity: 1; }
-  .proj-btn.pinned { opacity: 1; }
+  .project-row-actions { display: flex; gap: 2px; }
+  .proj-btn { background: none; border: none; cursor: pointer; font-size: 12px; padding: 2px 5px; opacity: 0.3; line-height: 1; color: var(--text); border-radius: 4px; transition: opacity 0.15s, background 0.15s; }
+  .proj-btn:hover, .proj-btn:active { opacity: 1; background: var(--surface2); }
+  .proj-btn.pinned { opacity: 0.9; color: var(--accent2); }
+  .proj-btn.hide-btn { font-size: 11px; font-weight: 600; }
   .person-chip { background: rgba(167,139,250,0.12); border: 1px solid rgba(167,139,250,0.25); border-radius: 20px; color: var(--accent2); font-size: 12px; padding: 4px 10px; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
   .person-chip:hover { background: rgba(167,139,250,0.25); }
   .chips-wrap { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -249,7 +249,7 @@
         <option value="claude-sonnet-4-6">Sonnet 4.6</option>
         <option value="claude-opus-4-6">Opus 4.6</option>
       </select>
-      <span class="version-badge" id="version-badge">V19.2</span>
+      <span class="version-badge" id="version-badge">V19.3</span>
       <div class="header-status">
         <div class="status-dot" id="status-dot"></div>
         <span id="status-text">connecting...</span>
@@ -452,7 +452,7 @@ let selectedPeriod='today';
 let webSearchEnabled=false;
 let thinkingEnabled=false;
 let detailEnabled=false;
-const MNEMO_VERSION='V19.2';
+const MNEMO_VERSION='V19.3';
 let gNodes=[], gEdges=[], gDragging=null, gHovered=null, gAnimFrame=null, gSimMaxV=4;
 
 const PRICING = {
@@ -1108,7 +1108,7 @@ function renderDashboard(mems) {
             <span class="project-count">${p.count} ${p.count===1?'entry':'entries'}</span>
             <div class="project-row-actions">
               <button class="proj-btn${isPinned?' pinned':''}" onclick="togglePinProject('${esc(p.name)}')" title="${isPinned?'Unpin':'Pin to top (max 12)'}">📌</button>
-              <button class="proj-btn" onclick="hideProject('${esc(p.name)}')" title="Hide from dashboard">✕</button>
+              <button class="proj-btn hide-btn" onclick="hideProject('${esc(p.name)}')" title="Hide from dashboard">✕</button>
             </div>
           </div>
         </div>`;}).join('')}
@@ -1132,20 +1132,30 @@ function renderDashboard(mems) {
 
 async function saveDashboardConfig(newMeta) {
   const meta={type:'dashboard_config',...newMeta};
-  if(dashboardConfig?.id) {
-    await fetch(`https://api.mem0.ai/v1/memories/${dashboardConfig.id}/`,{
-      method:'PUT',headers:{'Authorization':`Token ${MEM0_KEY}`,'Content-Type':'application/json'},
-      body:JSON.stringify({memory:dashboardConfig.memory||'MNEMO dashboard configuration.',metadata:meta})
-    });
-    dashboardConfig={...dashboardConfig,metadata:meta};
-    renderDashboard(dashboardMems);
-  } else {
-    await fetch('https://api.mem0.ai/v1/memories/',{
-      method:'POST',headers:{'Authorization':`Token ${MEM0_KEY}`,'Content-Type':'application/json'},
-      body:JSON.stringify({messages:[{role:'user',content:'MNEMO dashboard configuration record.'}],user_id:USER_ID,metadata:meta})
-    });
-    loadDashboard();
-  }
+  // Optimistic update — re-render immediately, persist to Mem0 in background
+  const prevConfig=dashboardConfig;
+  dashboardConfig=dashboardConfig
+    ? {...dashboardConfig, metadata:meta}
+    : {id:null, memory:'MNEMO dashboard configuration.', metadata:meta};
+  renderDashboard(dashboardMems);
+  try {
+    if(prevConfig?.id) {
+      const res=await fetch(`https://api.mem0.ai/v1/memories/${prevConfig.id}/`,{
+        method:'PUT',headers:{'Authorization':`Token ${MEM0_KEY}`,'Content-Type':'application/json'},
+        body:JSON.stringify({memory:prevConfig.memory||'MNEMO dashboard configuration.',metadata:meta})
+      });
+      if(!res.ok) throw new Error(`${res.status}`);
+    } else {
+      const res=await fetch('https://api.mem0.ai/v1/memories/',{
+        method:'POST',headers:{'Authorization':`Token ${MEM0_KEY}`,'Content-Type':'application/json'},
+        body:JSON.stringify({messages:[{role:'user',content:'MNEMO dashboard configuration.'}],user_id:USER_ID,metadata:meta})
+      });
+      if(!res.ok) throw new Error(`${res.status}`);
+      const data=await res.json();
+      const newId=(data.results||data)?.[0]?.id||data.id||null;
+      if(newId) dashboardConfig={...dashboardConfig,id:newId};
+    }
+  } catch(e){ console.warn('[mnemo] dashboard config save error:',e.message); }
 }
 
 async function togglePinProject(name) {
