@@ -249,7 +249,7 @@
         <option value="claude-sonnet-4-6">Sonnet 4.6</option>
         <option value="claude-opus-4-6">Opus 4.6</option>
       </select>
-      <span class="version-badge" id="version-badge">V19.4</span>
+      <span class="version-badge" id="version-badge">V19.5</span>
       <div class="header-status">
         <div class="status-dot" id="status-dot"></div>
         <span id="status-text">connecting...</span>
@@ -452,7 +452,7 @@ let selectedPeriod='today';
 let webSearchEnabled=false;
 let thinkingEnabled=false;
 let detailEnabled=false;
-const MNEMO_VERSION='V19.4';
+const MNEMO_VERSION='V19.5';
 let gNodes=[], gEdges=[], gDragging=null, gHovered=null, gAnimFrame=null, gSimMaxV=4;
 
 const PRICING = {
@@ -1055,12 +1055,14 @@ function renderDashboard(mems) {
       projectMap[key].count++;
     }
 
-    // People
-    const people=text.match(/\b([A-Z][a-záéíóú]+ [A-Z][a-záéíóú]+)\b/g)||[];
-    people.forEach(name=>{
-      if(/René|Rene|Bartoli/.test(name)) return;
-      personMap[name]=(personMap[name]||0)+1;
-    });
+    // People — semantic first (metadata.people), regex fallback only if no semantic data
+    const _skip=/René|Rene|Bartoli/;
+    if(Array.isArray(meta.people)){
+      meta.people.forEach(name=>{ if(name&&!_skip.test(name)) personMap[name]=(personMap[name]||0)+1; });
+    } else {
+      const people=text.match(/\b([A-Z][a-záéíóú]+ [A-Z][a-záéíóú]+)\b/g)||[];
+      people.forEach(name=>{ if(!_skip.test(name)) personMap[name]=(personMap[name]||0)+1; });
+    }
 
     // Action items
     if(/action|todo|follow.up|pendiente|tarea|next step/i.test(text) && actionItems.length<6) {
