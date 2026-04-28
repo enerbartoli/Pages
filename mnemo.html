@@ -244,7 +244,7 @@
         <option value="claude-sonnet-4-6">Sonnet 4.6</option>
         <option value="claude-opus-4-6">Opus 4.6</option>
       </select>
-      <span class="version-badge" id="version-badge">V17.1</span>
+      <span class="version-badge" id="version-badge">V18.1</span>
       <div class="header-status">
         <div class="status-dot" id="status-dot"></div>
         <span id="status-text">connecting...</span>
@@ -325,7 +325,6 @@
     <div class="graph-toolbar">
       <button class="graph-btn" onclick="resetGraph()" title="Reset">⟳</button>
       <button class="graph-btn" onclick="loadGraph()" title="Reload">↻</button>
-      <button class="graph-btn" id="backfill-btn" onclick="startBackfill()" title="Analyze existing memories semantically">🧠</button>
     </div>
     <div id="graph-tooltip"></div>
   </div>
@@ -443,7 +442,7 @@ let ttsEnabled=false, isRecording=false, recognition=null;
 let selectedPeriod='today';
 let webSearchEnabled=false;
 let thinkingEnabled=false;
-const MNEMO_VERSION='V17.1';
+const MNEMO_VERSION='V18.1';
 let gNodes=[], gEdges=[], gDragging=null, gHovered=null, gAnimFrame=null, gSimMaxV=4;
 
 const PRICING = {
@@ -832,7 +831,12 @@ async function fetchMemories(limit=100) {
   const data=await res.json(); return Array.isArray(data)?data:(data.results||[]);
 }
 async function loadMemories() {
-  try { memories=await fetchMemories(200); renderMemories(); document.getElementById('mem-count').textContent=memories.length; setStatus('online',`${memories.length} memories`); }
+  try {
+    memories=await fetchMemories(200); renderMemories();
+    document.getElementById('mem-count').textContent=memories.length;
+    setStatus('online',`${memories.length} memories`);
+    if(!localStorage.getItem('mnemo_pipeline_ran')) runMemoryPipeline();
+  }
   catch(e){ setStatus('','mem0 error'); }
 }
 function renderMemories() {
@@ -1098,43 +1102,33 @@ function renderDashboard(mems) {
 
 // ── GRAPH
 function resizeCanvas(){const canvas=document.getElementById('graph-canvas'),view=document.getElementById('graph-view');canvas.width=view.clientWidth||window.innerWidth;canvas.height=view.clientHeight||(window.innerHeight-130);}
-async function startBackfill(){
-  const btn=document.getElementById('backfill-btn');
-  const canvas=document.getElementById('graph-canvas'),ctx=canvas.getContext('2d');
-  btn.disabled=true;
-  const cache=JSON.parse(localStorage.getItem('mnemo_semantic_v1')||'{}');
+async function runMemoryPipeline(){
   try{
     const allMems=await fetchMemories(500);
-    const pending=allMems.filter(m=>m.id&&!cache[m.id]&&!(Array.isArray(m.metadata?.people)&&m.metadata.people.length>0));
-    if(!pending.length){btn.textContent='✓';btn.title='All memories analyzed';setTimeout(()=>{btn.textContent='🧠';btn.disabled=false;},2000);return;}
-    const total=pending.length;
-    let done=0;
-    const drawProgress=()=>{
-      ctx.fillStyle='#0a0a0f';ctx.fillRect(0,0,canvas.width,canvas.height);
-      ctx.fillStyle='#6b6880';ctx.font='13px DM Sans,sans-serif';ctx.textAlign='center';
-      ctx.fillText(`Analyzing memories... ${done}/${total}`,canvas.width/2,canvas.height/2-14);
-      const pw=Math.min(300,canvas.width-80),ph=6,px=(canvas.width-pw)/2,py=canvas.height/2;
-      ctx.fillStyle='#2a2a3d';ctx.beginPath();ctx.roundRect(px,py,pw,ph,3);ctx.fill();
-      ctx.fillStyle='#7c6af7';ctx.beginPath();ctx.roundRect(px,py,pw*(done/total),ph,3);ctx.fill();
-      ctx.fillStyle='#9896b0';ctx.font='11px DM Sans,sans-serif';
-      ctx.fillText(`$${(done*0.000035).toFixed(4)} est. cost · ${total-done} remaining`,canvas.width/2,canvas.height/2+24);
-    };
-    drawProgress();
-    // Process in batches of 5
+    const pending=allMems.filter(m=>m.id&&!(Array.isArray(m.metadata?.people)||m.metadata?.meeting_topic));
+    if(!pending.length){ localStorage.setItem('mnemo_pipeline_ran','1'); return; }
     for(let i=0;i<pending.length;i+=5){
       const batch=pending.slice(i,i+5);
       await Promise.all(batch.map(async m=>{
         const entities=await extractEntitiesFromText(m.memory||'');
-        cache[m.id]={people:entities.people,meeting_topic:entities.meeting_topic};
-        done++;
+        if(entities.people.length>0||entities.meeting_topic){
+          await fetch(`https://api.mem0.ai/v1/memories/${m.id}/`,{
+            method:'PATCH',
+            headers:{'Authorization':`Token ${MEM0_KEY}`,'Content-Type':'application/json'},
+            body:JSON.stringify({metadata:{
+              ...m.metadata,
+              ...(entities.people.length>0?{people:entities.people}:{}),
+              ...(entities.meeting_topic?{meeting_topic:entities.meeting_topic}:{})
+            }})
+          });
+        }
       }));
-      localStorage.setItem('mnemo_semantic_v1',JSON.stringify(cache));
-      drawProgress();
-      if(i+5<pending.length) await new Promise(r=>setTimeout(r,300));
+      if(i+5<pending.length) await new Promise(r=>setTimeout(r,400));
     }
-    btn.textContent='✓';
-    setTimeout(()=>{btn.textContent='🧠';btn.disabled=false;loadGraph();},1000);
-  }catch(e){btn.textContent='🧠';btn.disabled=false;}
+    localStorage.setItem('mnemo_pipeline_ran','1');
+  }catch(e){
+    console.warn('[mnemo] pipeline error:',e.message);
+  }
 }
 
 async function loadGraph(){
@@ -1260,13 +1254,11 @@ function buildGraph(mems){
   const projectCount={},projectLabel={},projectMemIds={},personCount={},clusterMap={};
   const personProjects={};
   let userActionCount=0;
-  const semCache=JSON.parse(localStorage.getItem('mnemo_semantic_v1')||'{}');
 
   mems.forEach(m=>{
     const meta=m.metadata||{},text=m.memory||'';
     const memId=m.id||m.memory_id||text.substring(0,32);
     const projName=meta.project_name;
-    const cached=semCache[m.id]||{};
 
     if(projName){
       if(/^(user |the user |usuario )/i.test(projName)){
@@ -1280,8 +1272,8 @@ function buildGraph(mems){
       }
     }
 
-    // Meeting detection: semantic topic first, regex fallback
-    const semTopic=meta.meeting_topic||cached.meeting_topic||null;
+    // Meeting: use Claude-verified topic from Mem0 when available, regex fallback
+    const semTopic=meta.meeting_topic||null;
     const isMeeting=!!semTopic||meta.type==='meeting'||/meeting|reunión|sprint|weekly|daily|sync/i.test(text);
     if(isMeeting){
       const clKey=semTopic?normProjKey(semTopic):meetingKey(text,projName);
@@ -1290,11 +1282,9 @@ function buildGraph(mems){
       clusterMap[clKey].count++;
     }
 
-    // PASS 1 — Semantic people: from Mem0 metadata (new saves) or local backfill cache
-    const semPeople=Array.isArray(meta.people)&&meta.people.length>0 ? meta.people
-      : Array.isArray(cached.people)&&cached.people.length>0 ? cached.people : null;
-    if(semPeople){
-      semPeople.forEach(name=>{
+    // PASS 1 — Semantic: people verified by Claude, stored in Mem0 metadata
+    if(Array.isArray(meta.people)&&meta.people.length>0){
+      meta.people.forEach(name=>{
         if(/René|Rene|Bartoli/i.test(name)) return;
         personCount[name]=(personCount[name]||0)+1;
         if(projName&&!/^(user |the user |usuario )/i.test(projName)){
@@ -1305,18 +1295,15 @@ function buildGraph(mems){
     }
   });
 
-  // PASS 2 — Regex fallback only for memories with no semantic data at all
-  const legacyMems=mems.filter(m=>{
-    const meta=m.metadata||{},cached=semCache[m.id]||{};
-    if(Array.isArray(meta.people)||Array.isArray(cached.people)) return false;
+  // PASS 2 — Regex fallback only for memories not yet enriched by pipeline
+  mems.filter(m=>{
+    if(Array.isArray(m.metadata?.people)) return false;
     const cats=Array.isArray(m.categories)?m.categories:[];
     return cats.some(c=>c==='professional_details'||c==='technology'||c==='milestones');
-  });
-  legacyMems.forEach(m=>{
+  }).forEach(m=>{
     const meta=m.metadata||{},text=m.memory||'';
     const projName=meta.project_name;
-    const people=(text.match(/\b([A-Z][a-záéíóúü]{2,14} [A-Z][a-záéíóúü]{2,14})\b/g)||[]).filter(isValidPerson);
-    people.forEach(name=>{
+    (text.match(/\b([A-Z][a-záéíóúü]{2,14} [A-Z][a-záéíóúü]{2,14})\b/g)||[]).filter(isValidPerson).forEach(name=>{
       if(/René|Rene|Bartoli/.test(name)) return;
       personCount[name]=(personCount[name]||0)+1;
       if(projName&&!/^(user |the user |usuario )/i.test(projName)){
