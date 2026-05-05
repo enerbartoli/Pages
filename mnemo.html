@@ -81,6 +81,20 @@
   .summary-btn { background: transparent; border: 1px solid var(--border); border-radius: 8px; color: var(--text3); cursor: pointer; font-family: inherit; font-size: 11px; padding: 3px 9px; display: flex; align-items: center; gap: 3px; transition: all 0.2s; white-space: nowrap; }
   .summary-btn:hover { border-color: var(--accent); color: var(--accent2); }
 
+  /* ATTACHMENTS */
+  #attach-previews { display: none; gap: 6px; flex-wrap: wrap; margin-bottom: 7px; }
+  #attach-previews.visible { display: flex; }
+  .attach-chip { position: relative; background: var(--surface2); border: 1px solid var(--border); border-radius: 9px; padding: 5px 8px 5px 5px; display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--text2); max-width: 180px; }
+  .attach-chip img { width: 32px; height: 32px; object-fit: cover; border-radius: 5px; flex-shrink: 0; }
+  .attach-chip .file-icon { width: 32px; height: 32px; border-radius: 5px; background: var(--surface); display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+  .attach-chip .file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+  .attach-chip .remove { background: transparent; border: none; color: var(--text3); cursor: pointer; font-size: 14px; padding: 0 2px; line-height: 1; }
+  .attach-chip .remove:hover { color: var(--danger); }
+  .msg .msg-attachments { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 6px; }
+  .msg .msg-attachments img { max-width: 220px; max-height: 220px; border-radius: 8px; cursor: pointer; display: block; }
+  .msg .msg-attachments .file-tag { background: rgba(255,255,255,0.1); border-radius: 6px; padding: 4px 8px; font-size: 11px; display: flex; align-items: center; gap: 5px; }
+  .msg.assistant .msg-attachments .file-tag { background: var(--surface); border: 1px solid var(--border); }
+
   /* MODAL */
   .modal-overlay { position: fixed; inset: 0; background: rgba(10,10,15,0.85); backdrop-filter: blur(4px); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 14px; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
   .modal-overlay.open { opacity: 1; pointer-events: all; }
@@ -249,7 +263,7 @@
         <option value="claude-sonnet-4-6">Sonnet 4.6</option>
         <option value="claude-opus-4-6">Opus 4.6</option>
       </select>
-      <span class="version-badge" id="version-badge">V19.5</span>
+      <span class="version-badge" id="version-badge">V32.1</span>
       <div class="header-status">
         <div class="status-dot" id="status-dot"></div>
         <span id="status-text">connecting...</span>
@@ -293,10 +307,16 @@
         </div>
         <span style="font-size:10px;color:var(--text3)" id="web-indicator"></span>
       </div>
+      <div id="attach-previews"></div>
+      <input type="file" id="file-input" multiple hidden
+        accept="image/jpeg,image/png,image/gif,image/webp,application/pdf,text/*,.md,.csv,.json,.js,.ts,.py,.html,.css,.xml,.yml,.yaml,.log"
+        onchange="handleFiles(this.files); this.value=''">
       <div class="input-row">
         <button class="icon-btn" id="mic-btn" onclick="toggleVoice()" title="Voice input">🎙</button>
+        <button class="icon-btn" onclick="document.getElementById('file-input').click()" title="Attach image or file">📎</button>
         <textarea id="chat-input" placeholder="Ask anything..." rows="1"
           onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"
+          onpaste="handlePaste(event)"
           oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,110)+'px'"></textarea>
         <button class="icon-btn send" onclick="sendMessage()">➤</button>
       </div>
@@ -447,12 +467,15 @@
 // ── STATE
 let ANTHROPIC_KEY='', MEM0_KEY='', USER_ID='rene_bartoli';
 let chatMessages=[], memories=[], selectedModel='claude-haiku-4-5-20251001', usagePeriod='session';
+let pendingAttachments=[];
+const MAX_ATTACH_BYTES=8*1024*1024;
+const IMAGE_TYPES=['image/jpeg','image/png','image/gif','image/webp'];
 let ttsEnabled=false, isRecording=false, recognition=null;
 let selectedPeriod='today';
 let webSearchEnabled=false;
 let thinkingEnabled=false;
 let detailEnabled=false;
-const MNEMO_VERSION='V19.5';
+const MNEMO_VERSION='V32.1';
 let gNodes=[], gEdges=[], gDragging=null, gHovered=null, gAnimFrame=null, gSimMaxV=4;
 
 const PRICING = {
@@ -777,28 +800,120 @@ function speak(text) {
   });
 }
 
+// ── ATTACHMENTS
+function handleFiles(fileList){
+  const files=Array.from(fileList||[]);
+  files.forEach(addAttachment);
+}
+function handlePaste(e){
+  const items=e.clipboardData?.items; if(!items) return;
+  for(const it of items){
+    if(it.kind==='file'){
+      const f=it.getAsFile();
+      if(f){ e.preventDefault(); addAttachment(f); }
+    }
+  }
+}
+async function addAttachment(file){
+  if(file.size>MAX_ATTACH_BYTES){
+    appendMsg('system',`⚠️ "${file.name}" exceeds ${(MAX_ATTACH_BYTES/1024/1024)|0}MB limit.`);
+    return;
+  }
+  let kind;
+  if(IMAGE_TYPES.includes(file.type)) kind='image';
+  else if(file.type==='application/pdf') kind='pdf';
+  else if(file.type.startsWith('text/')||/\.(md|csv|json|js|ts|py|html|css|xml|ya?ml|log|txt)$/i.test(file.name)) kind='text';
+  else { appendMsg('system',`⚠️ Unsupported file type: ${file.name}`); return; }
+  try {
+    if(kind==='text'){
+      const textContent=await file.text();
+      pendingAttachments.push({kind,name:file.name,size:file.size,textContent});
+    } else {
+      const dataUrl=await readAsDataURL(file);
+      const base64=dataUrl.split(',')[1];
+      pendingAttachments.push({kind,name:file.name,size:file.size,mediaType:file.type,base64,dataUrl});
+    }
+    renderAttachPreviews();
+  } catch(err){ appendMsg('system',`⚠️ Could not read ${file.name}: ${err.message}`); }
+}
+function readAsDataURL(file){
+  return new Promise((resolve,reject)=>{
+    const r=new FileReader();
+    r.onload=()=>resolve(r.result);
+    r.onerror=()=>reject(new Error('read failed'));
+    r.readAsDataURL(file);
+  });
+}
+function removeAttachment(i){ pendingAttachments.splice(i,1); renderAttachPreviews(); }
+function renderAttachPreviews(){
+  const c=document.getElementById('attach-previews');
+  c.classList.toggle('visible', pendingAttachments.length>0);
+  c.innerHTML=pendingAttachments.map((a,i)=>{
+    const thumb=a.kind==='image'
+      ? `<img src="${a.dataUrl}" alt="">`
+      : `<div class="file-icon">${a.kind==='pdf'?'📄':'📃'}</div>`;
+    return `<div class="attach-chip">${thumb}<span class="file-name">${esc(a.name)}</span><button class="remove" onclick="removeAttachment(${i})" title="Remove">✕</button></div>`;
+  }).join('');
+}
+
 // ── CHAT
 async function sendMessage() {
   const input=document.getElementById('chat-input'), text=input.value.trim();
-  if(!text) return;
+  const attachments=pendingAttachments.slice();
+  if(!text && !attachments.length) return;
   input.value=''; input.style.height='auto';
-  appendMsg('user',text); chatMessages.push({role:'user',content:text});
+  pendingAttachments=[]; renderAttachPreviews();
+
+  const userContent=buildUserContent(text,attachments);
+  appendMsg('user',text,attachments);
+  chatMessages.push({role:'user',content:userContent});
+
   const indicator=appendTyping();
   try {
     const mems=await fetchMemories(5);
     const ctx=mems.map(m=>`• ${(m.memory||'').substring(0,150)}`).join('\n')||'No memories yet.';
-    const {reply,usage}=await askClaude(text,ctx);
+    const {reply,usage}=await askClaude(userContent,ctx);
     indicator.remove(); appendMsg('assistant',reply);
     chatMessages.push({role:'assistant',content:reply});
     speak(reply);
     if(usage) logUsage(selectedModel,usage.input_tokens||0,usage.output_tokens||0);
-    saveToMem0(text,reply);
+    const memText=text || (attachments.length?`[Shared ${attachments.length} file${attachments.length>1?'s':''}: ${attachments.map(a=>a.name).join(', ')}]`:'');
+    saveToMem0(memText,reply);
   } catch(e){ indicator.remove(); appendMsg('system',`⚠️ ${e.message}`); }
 }
 
-function appendMsg(role,text) {
+function buildUserContent(text,attachments){
+  if(!attachments.length) return text;
+  const blocks=[];
+  let inlinedText=text;
+  for(const a of attachments){
+    if(a.kind==='image'){
+      blocks.push({type:'image',source:{type:'base64',media_type:a.mediaType,data:a.base64}});
+    } else if(a.kind==='pdf'){
+      blocks.push({type:'document',source:{type:'base64',media_type:'application/pdf',data:a.base64}});
+    } else if(a.kind==='text'){
+      inlinedText=(inlinedText?inlinedText+'\n\n':'')+`--- File: ${a.name} ---\n${a.textContent}\n--- End of file ---`;
+    }
+  }
+  if(inlinedText) blocks.push({type:'text',text:inlinedText});
+  else if(!blocks.some(b=>b.type==='text')) blocks.push({type:'text',text:'(See attached files.)'});
+  return blocks;
+}
+
+function appendMsg(role,text,attachments) {
   const c=document.getElementById('chat-messages'), d=document.createElement('div');
-  d.className=`msg ${role}`; d.innerHTML=fmt(text); c.appendChild(d); c.scrollTop=c.scrollHeight; return d;
+  d.className=`msg ${role}`;
+  let html='';
+  if(attachments && attachments.length){
+    html+='<div class="msg-attachments">';
+    for(const a of attachments){
+      if(a.kind==='image') html+=`<img src="${a.dataUrl}" alt="${esc(a.name)}" onclick="window.open(this.src,'_blank')">`;
+      else html+=`<div class="file-tag">${a.kind==='pdf'?'📄':'📃'} ${esc(a.name)}</div>`;
+    }
+    html+='</div>';
+  }
+  if(text) html+=fmt(text);
+  d.innerHTML=html; c.appendChild(d); c.scrollTop=c.scrollHeight; return d;
 }
 function appendTyping() {
   const c=document.getElementById('chat-messages'), d=document.createElement('div');
