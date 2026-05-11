@@ -483,6 +483,9 @@
       <div class="admin-section">
         <div class="admin-section-title">Resumen general</div>
         <div id="adm-loading" style="color:var(--text3);font-size:13px">Cargando stats.json…</div>
+        <div id="adm-pat-config" style="display:none;margin-top:8px">
+          <button class="admin-btn" onclick="configPAT()">⚙️ Configurar GitHub PAT</button>
+        </div>
         <div id="adm-inner" style="display:none;flex-direction:column;gap:8px">
           <div style="display:flex;align-items:flex-end;gap:8px">
             <div class="admin-stat-big" id="adm-total">—</div>
@@ -500,8 +503,8 @@
           <div style="color:var(--text3);font-size:13px">—</div>
         </div>
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
-          <button class="admin-btn" onclick="triggerRename(false)">🔍 Dry-run rename</button>
-          <button class="admin-btn accent" onclick="triggerRename(true)">✏ Renombrar pendientes</button>
+          <button class="admin-btn" onclick="triggerRename(false)" title="Simula el renombrado sin tocar Drive. Usa esto para ver qué archivos se renombrarían antes de aplicar.">🔍 Dry-run rename</button>
+          <button class="admin-btn accent" onclick="triggerRename(true)" title="⚠️ Renombra los archivos en Drive de forma definitiva. Asegúrate de haber revisado el dry-run primero.">✏ Renombrar pendientes</button>
         </div>
         <div class="wf-status" id="rename-status"></div>
       </div>
@@ -1905,7 +1908,12 @@ function pipeDot(status, lastRun) {
   return h>25 ? 'yellow' : 'green';
 }
 async function loadAdmin() {
-  if(!GITHUB_PAT) { document.getElementById('adm-loading').textContent='⚠ GitHub PAT no configurado. Re-ingresa a MNEMO con el PAT.'; return; }
+  if(!GITHUB_PAT) {
+    document.getElementById('adm-loading').textContent='⚠ GitHub PAT no configurado.';
+    document.getElementById('adm-pat-config').style.display='block';
+    return;
+  }
+  document.getElementById('adm-pat-config').style.display='none';
   document.getElementById('adm-loading').style.display='block';
   document.getElementById('adm-inner').style.display='none';
   try {
@@ -1975,10 +1983,23 @@ async function triggerImport(wf, statusId) {
     setTimeout(()=>pollWorkflowStatus(wf,statusId),6000);
   } catch(e){el.innerHTML=`⚠ Error: ${esc(e.message)}`;}
 }
+function configPAT() {
+  const pat=prompt('Ingresa tu GitHub PAT.\n\nScopes necesarios:\n• repo — para leer stats.json del repo privado\n• workflow — para disparar workflows desde el Admin tab\n\nGenéralo en: github.com → Settings → Developer settings → Personal access tokens → Tokens (classic)','');
+  if(pat&&pat.trim()){
+    GITHUB_PAT=pat.trim();
+    localStorage.setItem('mnemo_github_pat',GITHUB_PAT);
+    document.getElementById('adm-pat-config').style.display='none';
+    loadAdmin();
+  }
+}
 async function triggerRename(apply) {
   const statusId='rename-status';
   const el=document.getElementById(statusId);
   if(!GITHUB_PAT){el.innerHTML='⚠ PAT no configurado';return;}
+  if(apply){
+    const pending=adminStats?.drive?.pending_rename_count??'?';
+    if(!confirm(`Esto renombrará ${pending} archivos en Google Drive de forma definitiva. ¿Continuar?`)) return;
+  }
   el.innerHTML=apply?'⏳ Disparando rename --apply…':'⏳ Disparando dry-run…';
   try {
     const r=await fetch('https://api.github.com/repos/enerbartoli/memory-pipeline/actions/workflows/rename_drive_files.yml/dispatches',
