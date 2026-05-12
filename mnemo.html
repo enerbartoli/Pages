@@ -308,7 +308,7 @@
         <option value="claude-sonnet-4-6">Sonnet 4.6</option>
         <option value="claude-opus-4-6">Opus 4.6</option>
       </select>
-      <span class="version-badge" id="version-badge">V33.1</span>
+      <span class="version-badge" id="version-badge">V36.1</span>
       <div class="header-status">
         <div class="status-dot" id="status-dot"></div>
         <span id="status-text">connecting...</span>
@@ -492,6 +492,11 @@
             <div style="font-size:13px;color:var(--text3);padding-bottom:5px">memorias</div>
           </div>
           <div style="font-size:11px;color:var(--text3)" id="adm-age">stats.json: —</div>
+          <div id="adm-scan-info" style="font-size:11px;margin-top:2px"></div>
+          <div style="margin-top:4px">
+            <button class="admin-btn" id="stats-refresh-btn" onclick="triggerStatsRefresh()" title="Fuerza un run del pipeline que incluye scan completo de Mem0. Útil cuando scan_skipped lleva más de 24h.">🔄 Forzar refresh de stats</button>
+            <div class="wf-status" id="stats-refresh-status"></div>
+          </div>
           <div id="adm-pipelines" style="display:flex;flex-direction:column;gap:0;margin-top:2px"></div>
         </div>
       </div>
@@ -611,7 +616,7 @@ let selectedPeriod='today';
 let webSearchEnabled=false;
 let thinkingEnabled=false;
 let detailEnabled=false;
-const MNEMO_VERSION='V33.1';
+const MNEMO_VERSION='V36.1';
 let gNodes=[], gEdges=[], gDragging=null, gHovered=null, gAnimFrame=null, gSimMaxV=4;
 
 const PRICING = {
@@ -1934,6 +1939,20 @@ function renderAdmin() {
   inner.style.display='flex';
   document.getElementById('adm-total').textContent=(s.mem0?.total_memories||0).toLocaleString();
   document.getElementById('adm-age').textContent=`stats.json: ${relativeTime(s.generated_at)}`;
+  const meta=s._metadata||{};
+  const scanInfo=document.getElementById('adm-scan-info');
+  if(meta.scan_skipped&&meta.last_full_scan){
+    const ageH=(Date.now()-new Date(meta.last_full_scan).getTime())/3600000;
+    if(ageH>24){
+      scanInfo.innerHTML=`⚠️ Métricas de Mem0 con más de 24h — considera forzar refresh`;
+      scanInfo.style.color='var(--warning,#f5a623)';
+    } else {
+      scanInfo.innerHTML=`ℹ️ Métricas de Mem0 actualizadas ${relativeTime(meta.last_full_scan)}`;
+      scanInfo.style.color='var(--text3)';
+    }
+  } else {
+    scanInfo.innerHTML='';
+  }
   const pipes=[
     ['Teams',s.pipelines?.teams],['HiNotes',s.pipelines?.hinotes],
     ['Claude import',s.pipelines?.claude_import],['ChatGPT import',s.pipelines?.chatgpt_import]
@@ -2008,6 +2027,19 @@ async function triggerRename(apply) {
     if(!r.ok) throw new Error(`${r.status}`);
     el.innerHTML='✅ Workflow disparado';
     setTimeout(()=>pollWorkflowStatus('rename_drive_files.yml',statusId),6000);
+  } catch(e){el.innerHTML=`⚠ ${esc(e.message)}`;}
+}
+async function triggerStatsRefresh() {
+  const el=document.getElementById('stats-refresh-status');
+  if(!GITHUB_PAT){el.innerHTML='⚠ PAT no configurado';return;}
+  el.innerHTML='⏳ Disparando refresh…';
+  try {
+    const r=await fetch('https://api.github.com/repos/enerbartoli/memory-pipeline/actions/workflows/memory_pipeline.yml/dispatches',
+      {method:'POST',headers:{'Authorization':`token ${GITHUB_PAT}`,'Content-Type':'application/json'},
+       body:JSON.stringify({ref:'main'})});
+    if(!r.ok) throw new Error(`${r.status}`);
+    el.innerHTML='✅ Workflow disparado — stats actualizados en ~2 min';
+    setTimeout(()=>pollWorkflowStatus('memory_pipeline.yml','stats-refresh-status'),6000);
   } catch(e){el.innerHTML=`⚠ ${esc(e.message)}`;}
 }
 async function pollWorkflowStatus(wf, statusId) {
