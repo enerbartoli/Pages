@@ -41,7 +41,10 @@ Crear siempre una branch descriptiva desde main. Nunca commitear directo a main.
 
 ### Pestaña Admin — 5 secciones
 
-1. **Resumen general** — `total_memories`, fecha de `stats.json`, botón de reload. Muestra botón `⚙️ Configurar GitHub PAT` cuando el PAT no está configurado.
+1. **Resumen general** — `total_memories`, fecha de `stats.json`, botón de reload.
+   - **Indicador de freshness (Fase 6b):** si `stats._metadata.scan_skipped == true`, muestra `ℹ️ Métricas de Mem0 actualizadas hace X` (o `⚠️` si > 24h). Sin `_metadata` → sin indicador (backward compat).
+   - **Botón 🔄 Forzar refresh de stats:** dispara `memory_pipeline.yml` vía `workflow_dispatch`. Al ser `workflow_dispatch`, stats.py siempre hace scan completo independientemente del delta.
+   - Muestra botón `⚙️ Configurar GitHub PAT` cuando el PAT no está configurado.
 2. **Google Drive** — archivos totales, renamed, pending. Botones: `🔍 Dry-run rename` y `✏ Renombrar pendientes` (con `confirm()` para el apply).
 3. **Mem0 — por source / por type** — tablas generadas desde `stats.json`.
 4. **Imports manuales** — botones para disparar `import_claude_history.yml` e `import_chatgpt_history.yml` vía GitHub API. Muestra status del run.
