@@ -2,7 +2,7 @@
 
 // ── Config ───────────────────────────────────────────────────────────────────
 // Replace with your deployed Apps Script Web App URL after setup
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID_HERE/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwZLIenD2Ef1-B5BSzFDsrFDNezDM_jWuT9JrmYdQTv4wSzswFOxJgyp67Y6z24-r_mOw/exec';
 
 const PASS_THRESHOLD = 13; // ≥13/16 = pass
 const TOTAL_QUESTIONS = 16;

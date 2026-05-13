@@ -11,7 +11,7 @@ const TOTAL_QUESTIONS = 16;
 
 // QUIZ_CLOSED flag — flip to true to stop accepting submissions after the pilot
 const QUIZ_CLOSED = false;
-const QUIZ_URL    = 'https://YOUR_GITHUB_USERNAME.github.io/mod1-knowledge-check/'; // ← update after deploy
+const QUIZ_URL    = 'https://enerbartoli.github.io/mod1-knowledge-check/';
 
 // ── Answer Key (server-side only — never exposed to the browser) ──────────────
 const ANSWER_KEY = {
