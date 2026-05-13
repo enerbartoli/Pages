@@ -964,16 +964,13 @@ function renderHeatmap() {
     });
   });
 
-  const maxFail = Math.max(...Object.values(failCount), 1);
-
   $('dash-heatmap').innerHTML = Object.entries(failCount).map(([q, count]) => {
     const pct   = Math.round((count / total) * 100);
-    const ratio = count / maxFail;
     const color = pct >= 50 ? '#F87171' : pct >= 25 ? '#FFC72C' : '#14B8A6';
     return `<div class="heatmap-row">
       <span class="heatmap-label">Q${q}</span>
       <div class="heatmap-bar-track">
-        <div class="heatmap-bar-fill" style="width:${ratio * 100}%;background:${color};"></div>
+        <div class="heatmap-bar-fill" style="width:${pct}%;background:${color};"></div>
       </div>
       <span class="heatmap-pct" style="color:${color};">${pct}%</span>
     </div>`;
