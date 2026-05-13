@@ -4,7 +4,7 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // ── Configuration ─────────────────────────────────────────────────────────────
-const RENE_EMAIL     = 'rene.bartoli@gmail.com';   // ← replace with your Gmail address
+const RENE_EMAIL     = 'herotoolnotifications@gmail.com';
 const SHEET_NAME     = 'MOD 1 Quiz Responses';
 const PASS_THRESHOLD = 13;   // ≥13 / 16 = pass
 const TOTAL_QUESTIONS = 16;
