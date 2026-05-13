@@ -242,49 +242,117 @@ function sendEmails(payload, scoreResult, sheetUrl) {
   }
 }
 
+function emailShell(contentHtml) {
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#f0f4f8;font-family:Arial,sans-serif;">' +
+    '<table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f4f8;padding:32px 0;">' +
+    '<tr><td align="center">' +
+    '<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">' +
+    '<tr><td style="background:#0d1b2e;padding:28px 40px;text-align:center;">' +
+    '<p style="margin:0;color:#00c9a7;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">Forecast Enrichment Programme · UK Pilot</p>' +
+    '<p style="margin:8px 0 0;color:#ffffff;font-size:20px;font-weight:700;">MOD 1 Knowledge Check</p>' +
+    '</td></tr>' +
+    '<tr><td style="padding:40px;">' + contentHtml + '</td></tr>' +
+    '<tr><td style="background:#f8f9fa;padding:20px 40px;border-top:1px solid #e9ecef;text-align:center;">' +
+    '<p style="margin:0;color:#6c757d;font-size:12px;">Rene Bartoli · Demand Planning · Forecast Enrichment Program</p>' +
+    '</td></tr>' +
+    '</table></td></tr></table></body></html>';
+}
+
 function sendPassEmail(toEmail, name, score, total, pct) {
   var subject = '✓ MOD 1 Knowledge Check — Passed';
-  var body = 'Hi ' + name + ',\n\n' +
-    'Great work — you scored ' + score + ' / ' + total + ' (' + pct + '%) on the MOD 1 Knowledge Check. ' +
-    'You\'ve met the 80% threshold to advance.\n\n' +
-    'What\'s next: MOD 2 (Hands-On Enrichment Practice) — dates to be confirmed.\n\n' +
-    'If you have questions about anything from MOD 1, you can revisit the facilitator deck ' +
-    'in the project SharePoint, or reach out to the Demand Planning team.\n\n' +
-    'Thanks,\nRene Bartoli\nDemand Planning · Forecast Enrichment Program';
+
+  var content =
+    '<div style="text-align:center;margin-bottom:32px;">' +
+    '<div style="display:inline-block;background:#d4edda;border-radius:50%;width:72px;height:72px;line-height:72px;font-size:36px;">✓</div>' +
+    '<h2 style="margin:16px 0 4px;color:#0d1b2e;font-size:24px;">Well done, ' + name + '!</h2>' +
+    '<p style="margin:0;color:#6c757d;font-size:15px;">You\'ve passed the knowledge check</p>' +
+    '</div>' +
+    '<table width="100%" cellpadding="0" cellspacing="0" style="background:#f8f9fa;border-radius:8px;margin-bottom:28px;">' +
+    '<tr>' +
+    '<td style="padding:20px;text-align:center;border-right:1px solid #e9ecef;">' +
+    '<p style="margin:0;font-size:32px;font-weight:700;color:#00c9a7;">' + score + '/' + total + '</p>' +
+    '<p style="margin:4px 0 0;font-size:12px;color:#6c757d;text-transform:uppercase;letter-spacing:1px;">Score</p>' +
+    '</td>' +
+    '<td style="padding:20px;text-align:center;border-right:1px solid #e9ecef;">' +
+    '<p style="margin:0;font-size:32px;font-weight:700;color:#00c9a7;">' + Math.round(pct) + '%</p>' +
+    '<p style="margin:4px 0 0;font-size:12px;color:#6c757d;text-transform:uppercase;letter-spacing:1px;">Accuracy</p>' +
+    '</td>' +
+    '<td style="padding:20px;text-align:center;">' +
+    '<p style="margin:0;font-size:32px;font-weight:700;color:#00c9a7;">PASS</p>' +
+    '<p style="margin:4px 0 0;font-size:12px;color:#6c757d;text-transform:uppercase;letter-spacing:1px;">Status</p>' +
+    '</td>' +
+    '</tr></table>' +
+    '<p style="color:#495057;font-size:15px;line-height:1.6;">You\'ve met the <strong>80% threshold</strong> to advance to the next module.</p>' +
+    '<div style="background:#e8f8f5;border-left:4px solid #00c9a7;border-radius:4px;padding:16px 20px;margin:24px 0;">' +
+    '<p style="margin:0;color:#0d1b2e;font-size:14px;font-weight:700;">What\'s next</p>' +
+    '<p style="margin:6px 0 0;color:#495057;font-size:14px;">MOD 2 — Hands-On Enrichment Practice. Dates to be confirmed.</p>' +
+    '</div>' +
+    '<p style="color:#6c757d;font-size:14px;line-height:1.6;">If you have questions about MOD 1 concepts, revisit the facilitator deck in the project SharePoint or reach out to the Demand Planning team.</p>';
 
   MailApp.sendEmail({
-    to:      toEmail,
-    subject: subject,
-    body:    body
+    to:       toEmail,
+    subject:  subject,
+    htmlBody: emailShell(content)
   });
 }
 
 function sendFailEmail(toEmail, name, score, total, pct, failedQNums) {
   var subject = 'MOD 1 Knowledge Check — Please review and retry';
 
-  var missedLines = failedQNums.map(function(num) {
+  var missedRows = failedQNums.map(function(num) {
     var key = 'Q' + num;
     var qText = QUESTION_TEXT[key] || '';
     var refs  = SLIDE_REFS[key] || '';
-    var slideLabel = refs.indexOf(',') > -1 ? 'slides' : 'slide';
-    return '• Question ' + num + ': ' + qText + '\n  → Review ' + slideLabel + ' ' + refs + ' in the MOD 1 facilitator deck.';
-  }).join('\n\n');
+    var slideLabel = refs.indexOf(',') > -1 ? 'Slides' : 'Slide';
+    return '<tr style="border-bottom:1px solid #e9ecef;">' +
+      '<td style="padding:12px 8px;color:#0d1b2e;font-weight:700;font-size:13px;white-space:nowrap;">Q' + num + '</td>' +
+      '<td style="padding:12px 8px;color:#495057;font-size:13px;line-height:1.5;">' + qText + '</td>' +
+      '<td style="padding:12px 8px;color:#00c9a7;font-size:13px;white-space:nowrap;">' + slideLabel + ' ' + refs + '</td>' +
+      '</tr>';
+  }).join('');
 
-  var body = 'Hi ' + name + ',\n\n' +
-    'Thanks for taking the MOD 1 Knowledge Check. You scored ' + score + ' / ' + total + ' (' + pct + '%), ' +
-    'which is below the 80% threshold to advance.\n\n' +
-    'No worries — the goal is for everyone to land MOD 1 fully before we move to the hands-on practice. ' +
-    'Please review the questions you missed:\n\n' +
-    missedLines + '\n\n' +
-    'I\'m deliberately not telling you the correct answers in this email — the point is to go back to ' +
-    'the material and find them yourself. That\'s where the learning sticks.\n\n' +
-    'When you\'re ready, you can retake the quiz here: ' + QUIZ_URL + '\n\n' +
-    'Thanks,\nRene Bartoli\nDemand Planning · Forecast Enrichment Program';
+  var content =
+    '<div style="text-align:center;margin-bottom:32px;">' +
+    '<div style="display:inline-block;background:#fff3cd;border-radius:50%;width:72px;height:72px;line-height:72px;font-size:36px;">📋</div>' +
+    '<h2 style="margin:16px 0 4px;color:#0d1b2e;font-size:24px;">Hi ' + name + '</h2>' +
+    '<p style="margin:0;color:#6c757d;font-size:15px;">A little more review needed</p>' +
+    '</div>' +
+    '<table width="100%" cellpadding="0" cellspacing="0" style="background:#f8f9fa;border-radius:8px;margin-bottom:28px;">' +
+    '<tr>' +
+    '<td style="padding:20px;text-align:center;border-right:1px solid #e9ecef;">' +
+    '<p style="margin:0;font-size:32px;font-weight:700;color:#ffd60a;">' + score + '/' + total + '</p>' +
+    '<p style="margin:4px 0 0;font-size:12px;color:#6c757d;text-transform:uppercase;letter-spacing:1px;">Score</p>' +
+    '</td>' +
+    '<td style="padding:20px;text-align:center;border-right:1px solid #e9ecef;">' +
+    '<p style="margin:0;font-size:32px;font-weight:700;color:#ffd60a;">' + Math.round(pct) + '%</p>' +
+    '<p style="margin:4px 0 0;font-size:12px;color:#6c757d;text-transform:uppercase;letter-spacing:1px;">Accuracy</p>' +
+    '</td>' +
+    '<td style="padding:20px;text-align:center;">' +
+    '<p style="margin:0;font-size:32px;font-weight:700;color:#dc3545;">RETRY</p>' +
+    '<p style="margin:4px 0 0;font-size:12px;color:#6c757d;text-transform:uppercase;letter-spacing:1px;">Status</p>' +
+    '</td>' +
+    '</tr></table>' +
+    '<p style="color:#495057;font-size:15px;line-height:1.6;">No worries — the goal is for everyone to fully land MOD 1 before moving to hands-on practice. Here are the questions to revisit:</p>' +
+    '<table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e9ecef;border-radius:8px;overflow:hidden;margin:20px 0;">' +
+    '<tr style="background:#0d1b2e;">' +
+    '<th style="padding:10px 8px;color:#00c9a7;font-size:11px;text-transform:uppercase;letter-spacing:1px;text-align:left;">#</th>' +
+    '<th style="padding:10px 8px;color:#00c9a7;font-size:11px;text-transform:uppercase;letter-spacing:1px;text-align:left;">Question</th>' +
+    '<th style="padding:10px 8px;color:#00c9a7;font-size:11px;text-transform:uppercase;letter-spacing:1px;text-align:left;">Review</th>' +
+    '</tr>' +
+    missedRows +
+    '</table>' +
+    '<div style="background:#fff3cd;border-left:4px solid #ffd60a;border-radius:4px;padding:16px 20px;margin:24px 0;">' +
+    '<p style="margin:0;color:#0d1b2e;font-size:14px;font-weight:700;">Note</p>' +
+    '<p style="margin:6px 0 0;color:#495057;font-size:14px;">I\'m deliberately not sharing the correct answers here — go back to the material and find them yourself. That\'s where the learning sticks.</p>' +
+    '</div>' +
+    '<div style="text-align:center;margin-top:28px;">' +
+    '<a href="' + QUIZ_URL + '" style="display:inline-block;background:#ffd60a;color:#0d1b2e;font-weight:700;font-size:15px;padding:14px 32px;border-radius:8px;text-decoration:none;">Retake the Quiz →</a>' +
+    '</div>';
 
   MailApp.sendEmail({
-    to:      toEmail,
-    subject: subject,
-    body:    body
+    to:       toEmail,
+    subject:  subject,
+    htmlBody: emailShell(content)
   });
 }
 
