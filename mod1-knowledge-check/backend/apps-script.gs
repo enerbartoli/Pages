@@ -5,6 +5,7 @@
 
 // ── Configuration ─────────────────────────────────────────────────────────────
 const RENE_EMAIL     = 'herotoolnotifications@gmail.com';
+const RENE_COPY_EMAIL = 'Rene.bartoli@hasbro.com';
 const SHEET_NAME     = 'MOD 1 Quiz Responses';
 const PASS_THRESHOLD = 13;   // ≥13 / 16 = pass
 const TOTAL_QUESTIONS = 16;
@@ -307,6 +308,7 @@ function sendNotificationEmail(payload, scoreResult, sheetUrl) {
 
   MailApp.sendEmail({
     to:      RENE_EMAIL,
+    cc:      RENE_COPY_EMAIL,
     subject: subject,
     body:    body
   });
