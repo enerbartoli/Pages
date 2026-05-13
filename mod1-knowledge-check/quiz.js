@@ -760,27 +760,43 @@ async function showDashContent() {
     const data = await res.json();
     dashRows     = (data.rows || []).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
     dashFiltered = dashRows;
+    populateRoleFilter();
     renderDash();
   } catch (err) {
     $('dash-table-wrap').innerHTML = '<p style="color:var(--coral);font-size:13px;">Failed to load data. Make sure the Apps Script is deployed and the Sheet has data.</p>';
   }
 }
 
+function populateRoleFilter() {
+  const select = $('dash-role-filter');
+  const current = select.value;
+  // Collect unique roles from actual data + known roles
+  const rolesInData = [...new Set(dashRows.map(r => r.role).filter(Boolean))];
+  const allRoles = ROLES.filter(r => r !== 'Other').concat(
+    rolesInData.filter(r => !ROLES.includes(r))
+  );
+  select.innerHTML = '<option value="">All roles</option>' +
+    allRoles.map(r => `<option value="${escHtml(r)}" ${r === current ? 'selected' : ''}>${escHtml(r)}</option>`).join('');
+}
+
 // ── Date filter ───────────────────────────────────────────────────────────────
 function applyDateFilter() {
   const from = $('dash-date-from').value;
   const to   = $('dash-date-to').value;
+  const role = $('dash-role-filter').value;
 
   dashFiltered = dashRows.filter(r => {
     const d = new Date(r.timestamp);
     if (from && d < new Date(from + 'T00:00:00')) return false;
     if (to   && d > new Date(to   + 'T23:59:59')) return false;
+    if (role && r.role !== role) return false;
     return true;
   });
 
   const label = [];
   if (from) label.push('From ' + from);
   if (to)   label.push('To ' + to);
+  if (role) label.push('Role: ' + role);
   $('dash-filter-label').textContent = label.length
     ? label.join(' · ') + ' — ' + dashFiltered.length + ' submission(s)'
     : '';
@@ -789,8 +805,9 @@ function applyDateFilter() {
 }
 
 function clearDateFilter() {
-  $('dash-date-from').value = '';
-  $('dash-date-to').value   = '';
+  $('dash-date-from').value     = '';
+  $('dash-date-to').value       = '';
+  $('dash-role-filter').value   = '';
   dashFiltered = dashRows;
   $('dash-filter-label').textContent = '';
   renderDash();
