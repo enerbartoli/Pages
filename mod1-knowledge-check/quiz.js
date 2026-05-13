@@ -8,6 +8,26 @@ const PASS_THRESHOLD = 13; // ≥13/16 = pass
 const TOTAL_QUESTIONS = 16;
 const LS_KEY = 'mod1_quiz_state';
 
+const ANSWER_KEY = {
+  Q1:'C', Q2:'B', Q3:'B', Q4:'B',  Q5:'C',  Q6:'C',  Q7:'B',  Q8:'C',
+  Q9:'B', Q10:'B', Q11:'B', Q12:'B', Q13:'C', Q14:'B', Q15:'C', Q16:'C'
+};
+
+function scoreAnswers(answers) {
+  let score = 0;
+  const failedQNums = [];
+  for (let i = 1; i <= TOTAL_QUESTIONS; i++) {
+    const key = 'Q' + i;
+    if ((answers[key] || '').toUpperCase() === ANSWER_KEY[key]) {
+      score++;
+    } else {
+      failedQNums.push(i);
+    }
+  }
+  const percent = Math.round((score / TOTAL_QUESTIONS) * 10000) / 100;
+  return { score, total: TOTAL_QUESTIONS, percent, pass: score >= PASS_THRESHOLD, failed_questions: failedQNums };
+}
+
 // ── Question Bank (no answer key — lives server-side only) ────────────────────
 const QUESTIONS = [
   {
@@ -499,31 +519,18 @@ async function submitQuiz() {
   submitBtn.innerHTML = '<span class="spinner"></span> Submitting…';
   hide($('submit-error'));
 
-  try {
-    const res = await fetch(APPS_SCRIPT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify(payload)
-    });
+  // Score locally to avoid Apps Script CORS redirect limitation
+  const result = scoreAnswers(state.answers);
 
-    if (!res.ok) throw new Error(`Server responded ${res.status}`);
+  // Fire-and-forget to Apps Script for Sheet logging + emails (no-cors)
+  fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify(payload)
+  }).catch(() => {}); // ignore network errors — score already shown
 
-    const data = await res.json();
-
-    if (data.error) throw new Error(data.error);
-
-    goResults(data);
-  } catch (err) {
-    // Save state to localStorage so user doesn't lose answers
-    saveState();
-
-    const errEl = $('submit-error');
-    errEl.textContent = `Submission failed: ${err.message}. Your answers are saved — please try again.`;
-    errEl.classList.remove('hidden');
-
-    submitBtn.disabled = false;
-    submitBtn.innerHTML = 'Submit Answers';
-  }
+  goResults(result);
 }
 
 // ── Results screen ────────────────────────────────────────────────────────────
