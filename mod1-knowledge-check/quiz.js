@@ -663,6 +663,7 @@ function init() {
   initQuestion();
   initConfirm();
   initResults();
+  initDashboard();
 
   const saved = loadState();
   checkResume(saved);
@@ -671,3 +672,381 @@ function init() {
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
+// ══════════════════════════════════════════════════════════════════════════════
+// DASHBOARD
+// ══════════════════════════════════════════════════════════════════════════════
+
+const DASH_HASH    = '3112727bdedc9e678230b70a47eb12222f8e6da33f24a9c5539f50cf4c84359c';
+const DASH_LS_KEY  = 'mod1_dash_unlocked';
+const DASH_EXPIRY  = 8 * 60 * 60 * 1000; // 8 hours
+
+let dashRows   = [];   // all rows from Sheet
+let dashFiltered = []; // rows after date filter
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+function initDashboard() {
+  $('btn-open-dashboard').addEventListener('click', () => {
+    setScreen('dashboard');
+    checkDashAuth();
+  });
+
+  $('btn-open-dashboard-welcome').addEventListener('click', () => {
+    setScreen('dashboard');
+    checkDashAuth();
+  });
+
+  $('btn-dash-back').addEventListener('click', () => setScreen('results'));
+  $('btn-dash-to-quiz').addEventListener('click', () => setScreen('welcome'));
+  $('btn-dash-logout').addEventListener('click', dashLogout);
+
+  $('dash-pwd-btn').addEventListener('click', dashTryUnlock);
+  $('dash-pwd-input').addEventListener('keydown', e => { if (e.key === 'Enter') dashTryUnlock(); });
+
+  $('dash-filter-btn').addEventListener('click', applyDateFilter);
+  $('dash-clear-btn').addEventListener('click', clearDateFilter);
+  $('dash-lookup-btn').addEventListener('click', runLookup);
+  $('dash-lookup-input').addEventListener('keydown', e => { if (e.key === 'Enter') runLookup(); });
+}
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+function checkDashAuth() {
+  const stored = localStorage.getItem(DASH_LS_KEY);
+  if (stored && Date.now() - parseInt(stored) < DASH_EXPIRY) {
+    showDashContent();
+  } else {
+    show($('dash-gate'));
+    hide($('dash-content'));
+    $('dash-pwd-input').value = '';
+    hide($('dash-pwd-error'));
+  }
+}
+
+async function dashTryUnlock() {
+  const pwd = $('dash-pwd-input').value;
+  const hash = await sha256(pwd);
+  if (hash === DASH_HASH) {
+    localStorage.setItem(DASH_LS_KEY, Date.now().toString());
+    hide($('dash-pwd-error'));
+    showDashContent();
+  } else {
+    show($('dash-pwd-error'));
+    $('dash-pwd-input').select();
+  }
+}
+
+function dashLogout() {
+  localStorage.removeItem(DASH_LS_KEY);
+  hide($('dash-content'));
+  show($('dash-gate'));
+  $('dash-pwd-input').value = '';
+}
+
+async function sha256(str) {
+  const buf  = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// ── Load data ─────────────────────────────────────────────────────────────────
+async function showDashContent() {
+  hide($('dash-gate'));
+  show($('dash-content'));
+
+  $('dash-table-wrap').innerHTML = '<p class="muted" style="font-size:13px;">Loading…</p>';
+  $('dash-kpis').innerHTML = '';
+
+  try {
+    const res  = await fetch(APPS_SCRIPT_URL + '?action=getData');
+    const data = await res.json();
+    dashRows     = (data.rows || []).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    dashFiltered = dashRows;
+    renderDash();
+  } catch (err) {
+    $('dash-table-wrap').innerHTML = '<p style="color:var(--coral);font-size:13px;">Failed to load data. Make sure the Apps Script is deployed and the Sheet has data.</p>';
+  }
+}
+
+// ── Date filter ───────────────────────────────────────────────────────────────
+function applyDateFilter() {
+  const from = $('dash-date-from').value;
+  const to   = $('dash-date-to').value;
+
+  dashFiltered = dashRows.filter(r => {
+    const d = new Date(r.timestamp);
+    if (from && d < new Date(from + 'T00:00:00')) return false;
+    if (to   && d > new Date(to   + 'T23:59:59')) return false;
+    return true;
+  });
+
+  const label = [];
+  if (from) label.push('From ' + from);
+  if (to)   label.push('To ' + to);
+  $('dash-filter-label').textContent = label.length
+    ? label.join(' · ') + ' — ' + dashFiltered.length + ' submission(s)'
+    : '';
+
+  renderDash();
+}
+
+function clearDateFilter() {
+  $('dash-date-from').value = '';
+  $('dash-date-to').value   = '';
+  dashFiltered = dashRows;
+  $('dash-filter-label').textContent = '';
+  renderDash();
+}
+
+// ── Render all ────────────────────────────────────────────────────────────────
+function renderDash() {
+  renderKPIs();
+  renderDonut();
+  renderHistogram();
+  renderHeatmap();
+  renderTable();
+}
+
+// ── KPIs ──────────────────────────────────────────────────────────────────────
+function renderKPIs() {
+  const rows   = dashFiltered;
+  const total  = rows.length;
+  const passes = rows.filter(r => r.status === 'Pass').length;
+  const fails  = total - passes;
+  const avgPct = total ? Math.round(rows.reduce((s, r) => s + (r.percent || 0), 0) / total) : 0;
+  const passRate = total ? Math.round((passes / total) * 100) : 0;
+
+  const kpis = [
+    { val: total,         label: 'Submissions',   color: 'var(--white)' },
+    { val: passes,        label: 'Passed',         color: 'var(--teal)' },
+    { val: fails,         label: 'Need retry',     color: 'var(--coral)' },
+    { val: avgPct + '%',  label: 'Avg score',      color: 'var(--yellow)' },
+    { val: passRate + '%',label: 'Pass rate',      color: 'var(--teal)' },
+  ];
+
+  $('dash-kpis').innerHTML = kpis.map(k =>
+    `<div class="kpi-card">
+      <div class="kpi-val" style="color:${k.color};">${k.val}</div>
+      <div class="kpi-label">${k.label}</div>
+    </div>`
+  ).join('');
+}
+
+// ── Donut chart ───────────────────────────────────────────────────────────────
+function renderDonut() {
+  const canvas = $('chart-donut');
+  const ctx    = canvas.getContext('2d');
+  const rows   = dashFiltered;
+  const passes = rows.filter(r => r.status === 'Pass').length;
+  const fails  = rows.length - passes;
+  const total  = rows.length || 1;
+
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const cx = W / 2, cy = H / 2, outer = 80, inner = 50;
+  const slices = [
+    { val: passes, color: '#14B8A6' },
+    { val: fails,  color: '#F87171' }
+  ];
+
+  let start = -Math.PI / 2;
+  slices.forEach(s => {
+    const angle = (s.val / total) * 2 * Math.PI;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, outer, start, start + angle);
+    ctx.closePath();
+    ctx.fillStyle = s.color;
+    ctx.fill();
+    start += angle;
+  });
+
+  // Hole
+  ctx.beginPath();
+  ctx.arc(cx, cy, inner, 0, 2 * Math.PI);
+  ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--navy-mid').trim() || '#1E2A4A';
+  ctx.fill();
+
+  // Center text
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 22px Calibri, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(rows.length, cx, cy - 8);
+  ctx.font = '11px Calibri, sans-serif';
+  ctx.fillStyle = '#94A3B8';
+  ctx.fillText('total', cx, cy + 12);
+
+  $('chart-donut-legend').innerHTML =
+    `<span style="color:#14B8A6;">● Pass ${passes}</span>
+     <span style="color:#F87171;">● Fail ${fails}</span>`;
+}
+
+// ── Histogram ─────────────────────────────────────────────────────────────────
+function renderHistogram() {
+  const canvas = $('chart-hist');
+  const ctx    = canvas.getContext('2d');
+  const rows   = dashFiltered;
+
+  // Buckets: 0-4, 5-6, 7-8, 9-10, 11-12, 13-14, 15-16
+  const buckets = [
+    { label: '0-4',   min: 0,  max: 4  },
+    { label: '5-8',   min: 5,  max: 8  },
+    { label: '9-10',  min: 9,  max: 10 },
+    { label: '11-12', min: 11, max: 12 },
+    { label: '13-14', min: 13, max: 14 },
+    { label: '15-16', min: 15, max: 16 },
+  ];
+
+  buckets.forEach(b => {
+    b.count = rows.filter(r => r.score >= b.min && r.score <= b.max).length;
+  });
+
+  const maxCount = Math.max(...buckets.map(b => b.count), 1);
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const padL = 24, padR = 8, padT = 10, padB = 32;
+  const chartW = W - padL - padR;
+  const chartH = H - padT - padB;
+  const barW   = chartW / buckets.length;
+  const gap    = 6;
+
+  buckets.forEach((b, i) => {
+    const bh  = (b.count / maxCount) * chartH;
+    const x   = padL + i * barW + gap / 2;
+    const y   = padT + chartH - bh;
+    const isPass = b.min >= 13;
+
+    ctx.fillStyle = isPass ? '#14B8A6' : '#2D3E6F';
+    ctx.beginPath();
+    ctx.roundRect(x, y, barW - gap, bh, [4, 4, 0, 0]);
+    ctx.fill();
+
+    if (b.count > 0) {
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 11px Calibri, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(b.count, x + (barW - gap) / 2, y - 4);
+    }
+
+    ctx.fillStyle = '#94A3B8';
+    ctx.font = '10px Calibri, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(b.label, x + (barW - gap) / 2, H - padB + 14);
+  });
+
+  // Pass threshold line
+  const thresholdX = padL + (4 / buckets.length) * chartW + barW;
+  ctx.strokeStyle = '#FFC72C';
+  ctx.setLineDash([4, 3]);
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(padL + (4 * barW), padT);
+  ctx.lineTo(padL + (4 * barW), padT + chartH);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+// ── Heatmap ───────────────────────────────────────────────────────────────────
+function renderHeatmap() {
+  const rows = dashFiltered;
+  const total = rows.length || 1;
+
+  // Count failures per question from the 'failed' field (comma-separated Q numbers)
+  const failCount = {};
+  for (let i = 1; i <= 16; i++) failCount[i] = 0;
+
+  rows.forEach(r => {
+    if (!r.failed) return;
+    String(r.failed).split(',').forEach(s => {
+      const n = parseInt(s.trim());
+      if (n >= 1 && n <= 16) failCount[n]++;
+    });
+  });
+
+  const maxFail = Math.max(...Object.values(failCount), 1);
+
+  $('dash-heatmap').innerHTML = Object.entries(failCount).map(([q, count]) => {
+    const pct   = Math.round((count / total) * 100);
+    const ratio = count / maxFail;
+    const color = pct >= 50 ? '#F87171' : pct >= 25 ? '#FFC72C' : '#14B8A6';
+    return `<div class="heatmap-row">
+      <span class="heatmap-label">Q${q}</span>
+      <div class="heatmap-bar-track">
+        <div class="heatmap-bar-fill" style="width:${ratio * 100}%;background:${color};"></div>
+      </div>
+      <span class="heatmap-pct" style="color:${color};">${pct}%</span>
+    </div>`;
+  }).join('');
+}
+
+// ── Lookup ────────────────────────────────────────────────────────────────────
+function runLookup() {
+  const query  = $('dash-lookup-input').value.trim().toLowerCase();
+  const result = $('dash-lookup-result');
+  if (!query) { result.innerHTML = ''; return; }
+
+  const matches = dashRows.filter(r => r.email.toLowerCase().includes(query) || r.name.toLowerCase().includes(query));
+
+  if (!matches.length) {
+    result.innerHTML = `<p style="color:var(--gray-muted);font-size:13px;">No submissions found for "${escHtml(query)}".</p>`;
+    return;
+  }
+
+  result.innerHTML = matches.map(r => {
+    const d    = new Date(r.timestamp);
+    const date = d.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    const statusColor = r.status === 'Pass' ? 'var(--teal)' : 'var(--coral)';
+    return `<div class="lookup-card" style="margin-bottom:8px;">
+      <div class="lc-name">${escHtml(r.name)}</div>
+      <div class="lc-row">Email: <span>${escHtml(r.email)}</span></div>
+      <div class="lc-row">Role: <span>${escHtml(r.role)}</span></div>
+      <div class="lc-row">Score: <span>${r.score}/16 (${Math.round(r.percent)}%)</span></div>
+      <div class="lc-row">Status: <span style="color:${statusColor};font-weight:700;">${r.status}</span></div>
+      <div class="lc-row">Submitted: <span>${date}</span></div>
+      ${r.failed ? `<div class="lc-row">Failed Qs: <span style="color:var(--coral);">${escHtml(r.failed)}</span></div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// ── Table ─────────────────────────────────────────────────────────────────────
+function renderTable() {
+  const rows = dashFiltered;
+  $('dash-count').textContent = rows.length + ' record(s)';
+
+  if (!rows.length) {
+    $('dash-table-wrap').innerHTML = '<p class="muted" style="font-size:13px;">No submissions in this date range.</p>';
+    return;
+  }
+
+  $('dash-table-wrap').innerHTML = `
+    <table class="dash-table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Role</th>
+          <th>Score</th>
+          <th>%</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map(r => {
+          const d    = new Date(r.timestamp);
+          const date = d.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+          const statusClass = r.status === 'Pass' ? 'status-pass' : 'status-fail';
+          return `<tr>
+            <td style="white-space:nowrap;">${date}</td>
+            <td>${escHtml(r.name)}</td>
+            <td style="color:var(--gray-muted);">${escHtml(r.email)}</td>
+            <td style="color:var(--gray-muted);">${escHtml(r.role)}</td>
+            <td style="font-weight:700;">${r.score}/16</td>
+            <td>${Math.round(r.percent)}%</td>
+            <td class="${statusClass}">${r.status}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+}

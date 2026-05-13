@@ -58,6 +58,28 @@ function buildResponse(data, statusCode) {
 // Handle CORS pre-flight (OPTIONS) — Apps Script doesn't support OPTIONS natively,
 // but including doGet lets us test the endpoint from a browser.
 function doGet(e) {
+  if (e && e.parameter && e.parameter.action === 'getData') {
+    var ss    = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName(SHEET_NAME);
+    if (!sheet || sheet.getLastRow() < 2) return buildResponse({ rows: [] });
+
+    var data = sheet.getDataRange().getValues();
+    var rows = [];
+    for (var i = 1; i < data.length; i++) {
+      var r = data[i];
+      rows.push({
+        timestamp:  r[0] ? new Date(r[0]).toISOString() : '',
+        name:       r[1] || '',
+        email:      r[2] || '',
+        role:       r[3] || '',
+        score:      r[5] || 0,
+        percent:    r[6] || 0,
+        status:     r[7] || '',
+        failed:     r[40] || ''
+      });
+    }
+    return buildResponse({ rows: rows });
+  }
   return buildResponse({ status: 'MOD 1 Quiz backend is running.' });
 }
 

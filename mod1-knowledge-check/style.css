@@ -469,3 +469,105 @@ h3 { font-size: 16px; font-weight: 600; }
   .btn-lg { font-size: 16px; padding: 16px 24px; }
   .option-card { padding: 14px 16px; }
 }
+
+/* ── Dashboard ──────────────────────────────────────────────────── */
+#screen-dashboard { max-width: 860px; width: 100%; }
+
+.kpi-card {
+  background: var(--navy-mid);
+  border: 1px solid var(--navy-light);
+  border-radius: var(--radius);
+  padding: 20px 16px;
+  text-align: center;
+}
+.kpi-val {
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+.kpi-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--gray-muted);
+}
+
+.dash-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.dash-table th {
+  text-align: left;
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--gray-muted);
+  border-bottom: 1px solid var(--navy-light);
+  white-space: nowrap;
+}
+.dash-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--navy-light);
+  color: var(--gray-light);
+}
+.dash-table tr:last-child td { border-bottom: none; }
+.dash-table tr:hover td { background: var(--navy-mid); }
+
+.status-pass { color: var(--teal); font-weight: 700; }
+.status-fail { color: var(--coral); font-weight: 700; }
+
+.heatmap-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.heatmap-label {
+  font-size: 12px;
+  color: var(--gray-muted);
+  width: 28px;
+  flex-shrink: 0;
+  text-align: right;
+}
+.heatmap-bar-track {
+  flex: 1;
+  height: 20px;
+  background: var(--navy-dark);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.heatmap-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+.heatmap-pct {
+  font-size: 12px;
+  font-weight: 700;
+  width: 38px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.lookup-card {
+  background: var(--navy-dark);
+  border: 1px solid var(--navy-light);
+  border-radius: 8px;
+  padding: 14px 16px;
+  font-size: 13px;
+}
+.lookup-card .lc-name { font-size: 15px; font-weight: 700; margin-bottom: 8px; }
+.lookup-card .lc-row { display: flex; gap: 8px; margin-bottom: 4px; color: var(--gray-muted); }
+.lookup-card .lc-row span { color: var(--white); }
+
+@media (max-width: 600px) {
+  #screen-dashboard { max-width: 100%; }
+  #dash-content > div[style*="grid-template-columns:1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+}
