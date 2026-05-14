@@ -1,0 +1,16 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Local secrets / config (never commit actual URLs or credentials)
+.env
+config.local.js
+
+# Node (if you ever add tooling)
+node_modules/
