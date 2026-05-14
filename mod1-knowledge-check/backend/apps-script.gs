@@ -34,7 +34,7 @@ const QUESTION_TEXT = {
   Q3:  'Which statement is correct about the Daybreak statistical baseline?',
   Q4:  'Which statement correctly describes the three-party operating model that produces the baseline?',
   Q5:  'Which SKUs are treated using Daybreak\'s standard machine-learning forecasting approach?',
-  Q6:  'How is an NPI\'s forecast generated during its cold-start phase (0–8 weeks of history)?',
+  Q6:  'How is an NPI\'s forecast generated during its cold-start phase (0–16 weeks of history)?',
   Q7:  'Why are UK Fan items handled without a statistical baseline?',
   Q8:  'At which planning level is the Daybreak statistical baseline generated?',
   Q9:  'What is the purpose of forecast disaggregation in the new process?',

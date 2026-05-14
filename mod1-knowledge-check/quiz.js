@@ -91,7 +91,7 @@ const QUESTIONS = [
   },
   {
     id: 6,
-    text: 'How is an NPI\'s forecast generated during its cold-start phase (0–8 weeks of history)?',
+    text: 'How is an NPI\'s forecast generated during its cold-start phase (0–16 weeks of history)?',
     options: {
       A: 'By shaping the Brand Plan annual volume with attribute-based shape and level models (category, launch timing, price tier).',
       B: 'By copying the predecessor product\'s historical pattern.',
