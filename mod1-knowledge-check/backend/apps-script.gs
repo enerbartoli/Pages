@@ -16,35 +16,35 @@ const QUIZ_URL    = 'https://enerbartoli.github.io/mod1-knowledge-check/';
 
 // ── Answer Key (server-side only — never exposed to the browser) ──────────────
 const ANSWER_KEY = {
-  Q1: 'C', Q2: 'B', Q3: 'B', Q4: 'B',  Q5: 'C',  Q6: 'C',  Q7: 'B',  Q8: 'C',
-  Q9: 'B', Q10: 'B', Q11: 'B', Q12: 'B', Q13: 'C', Q14: 'B', Q15: 'C', Q16: 'C'
+  Q1: 'A', Q2: 'B', Q3: 'C', Q4: 'A',  Q5: 'C',  Q6: 'A',  Q7: 'D',  Q8: 'C',
+  Q9: 'D', Q10: 'B', Q11: 'B', Q12: 'C', Q13: 'D', Q14: 'B', Q15: 'D', Q16: 'A'
 };
 
 // ── Slide references for fail-email feedback ───────────────────────────────────
 const SLIDE_REFS = {
-  Q1: '31, 33', Q2: '5',    Q3: '9',  Q4: '10',    Q5: '11',
-  Q6: '15',    Q7: '14',   Q8: '10, 16', Q9: '17, 21', Q10: '22',
-  Q11: '25',   Q12: '26',  Q13: '32', Q14: '33',   Q15: '33',  Q16: '33'
+  Q1: '2, 4',  Q2: '4, 5',  Q3: '8, 10',  Q4: '11',   Q5: '12, 13',
+  Q6: '14',   Q7: '15',    Q8: '10, 16', Q9: '16',   Q10: '17, 19, 20, 21',
+  Q11: '22',  Q12: '25',   Q13: '32',    Q14: '33',  Q15: '33',  Q16: '33'
 };
 
 // ── Question text (for fail-email body) ───────────────────────────────────────
 const QUESTION_TEXT = {
-  Q1:  'According to the new Forecast Enrichment process, what is the primary shift in how Sales contributes to the forecast?',
-  Q2:  'What does the "wooden bridge" framing represent in the new process?',
-  Q3:  'Which of the following is TRUE about the Daybreak statistical baseline?',
-  Q4:  'Why does Daybreak use "Adjusted Demand" instead of raw shipment history?',
-  Q5:  'In the three-party operating model that produces the baseline, who provides the statistical ML engine?',
-  Q6:  'For UK Fan items, which forecasting approach applies?',
-  Q7:  'For NPI items in the cold-start phase (0–8 weeks), which method does NPI 2.0 use?',
-  Q8:  'At which planning level does Daybreak generate the statistical baseline?',
-  Q9:  'For NPI disaggregation, the customer split at L2 is based on which input?',
-  Q10: 'A parent SKU has variants A (70%) and B (30%) per P2M. Wal-Mart only carries variant A. What ensures Wal-Mart\'s volume is fully allocated to variant A and not split 70/30?',
-  Q11: 'An item has a normal carry-forward pattern and no new promotion is planned. What enrichment should you enter?',
-  Q12: 'Which of the five core L1 commercial enrichment types is the ONLY one that requires capturing driver attributes (discount %, mechanic, start/end dates)?',
-  Q13: 'How does Marketing push back on a Sales forecast they consider too optimistic?',
-  Q14: 'In the UK pilot, who owns Base Trend adjustments at the SKU × BU level (Level 2.5)?',
-  Q15: 'In the 2026 UK pilot, how does HERO start each cycle for Brand Captains?',
-  Q16: 'In the 2027 target operating model, how does the process change for Brand Captains?'
+  Q1:  'Why is Hasbro implementing the new Forecast Enrichment process now?',
+  Q2:  'Which statement best describes the role of the Daybreak statistical baseline in the new process?',
+  Q3:  'Which statement is correct about the Daybreak statistical baseline?',
+  Q4:  'Which statement correctly describes the three-party operating model that produces the baseline?',
+  Q5:  'Which SKUs are treated using Daybreak\'s standard machine-learning forecasting approach?',
+  Q6:  'How is an NPI\'s forecast generated during its cold-start phase (0–8 weeks of history)?',
+  Q7:  'Why are UK Fan items handled without a statistical baseline?',
+  Q8:  'At which planning level is the Daybreak statistical baseline generated?',
+  Q9:  'What is the purpose of forecast disaggregation in the new process?',
+  Q10: 'How does the disaggregation method differ between a Carry-Forward item and an NPI item?',
+  Q11: 'What is the purpose of the Forecasting Range?',
+  Q12: 'Which statement best describes when an enrichment should be applied to the baseline?',
+  Q13: 'What is the purpose of the Joint Marketing & Demand Planning Reconciliation Session?',
+  Q14: 'In the UK pilot, which statement correctly describes the scope split between Key Account Managers (KAMs) and Brand Captains?',
+  Q15: 'In the 2026 UK pilot, how does HERO present the starting forecast to Brand Captains at the beginning of each cycle?',
+  Q16: 'In the 2027 target operating model, how does the Brand Captain\'s role differ from the 2026 pilot?'
 };
 
 // ── CORS helper ───────────────────────────────────────────────────────────────
@@ -354,7 +354,8 @@ function sendFailEmail(toEmail, name, score, total, pct, failedQNums) {
     '<p style="margin:4px 0 0;font-size:12px;color:#6c757d;text-transform:uppercase;letter-spacing:1px;">Status</p>' +
     '</td>' +
     '</tr></table>' +
-    '<p style="color:#495057;font-size:15px;line-height:1.6;">No worries — the goal is for everyone to fully land MOD 1 before moving to hands-on practice. Here are the questions to revisit:</p>' +
+    '<p style="color:#495057;font-size:15px;line-height:1.6;">No worries — the goal is for everyone to fully land MOD 1 before moving to hands-on practice.</p>' +
+    '<h3 style="color:#0d1b2e;font-size:16px;font-weight:700;margin:24px 0 12px;">Questions to Review to Better Your Understanding</h3>' +
     '<table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e9ecef;border-radius:8px;overflow:hidden;margin:20px 0;">' +
     '<tr style="background:#0d1b2e;">' +
     '<th style="padding:10px 8px;color:#00c9a7;font-size:11px;text-transform:uppercase;letter-spacing:1px;text-align:left;">#</th>' +

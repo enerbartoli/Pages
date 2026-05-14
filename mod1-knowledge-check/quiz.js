@@ -9,8 +9,8 @@ const TOTAL_QUESTIONS = 16;
 const LS_KEY = 'mod1_quiz_state';
 
 const ANSWER_KEY = {
-  Q1:'C', Q2:'B', Q3:'B', Q4:'B',  Q5:'C',  Q6:'C',  Q7:'B',  Q8:'C',
-  Q9:'B', Q10:'B', Q11:'B', Q12:'B', Q13:'C', Q14:'B', Q15:'C', Q16:'C'
+  Q1:'A', Q2:'B', Q3:'C', Q4:'A',  Q5:'C',  Q6:'A',  Q7:'D',  Q8:'C',
+  Q9:'D', Q10:'B', Q11:'B', Q12:'C', Q13:'D', Q14:'B', Q15:'D', Q16:'A'
 };
 
 function scoreAnswers(answers) {
@@ -32,192 +32,192 @@ function scoreAnswers(answers) {
 const QUESTIONS = [
   {
     id: 1,
-    text: 'According to the new Forecast Enrichment process, what is the primary shift in how Sales contributes to the forecast?',
+    text: 'Why is Hasbro implementing the new Forecast Enrichment process now?',
     options: {
-      A: 'Sales now owns the entire forecast including the baseline.',
-      B: 'Sales no longer participates in the forecasting process.',
-      C: 'Sales no longer "forecasts" — Sales quantifies the demand impact of its own commercial activity.',
-      D: 'Sales adjusts the baseline directly in Logility every cycle.'
+      A: 'To address chronic gaps in forecast traceability, manual workload, and the ability to measure the value of commercial intelligence.',
+      B: 'To replace Logility with Daybreak as the planning system.',
+      C: 'To reduce the number of Demand Planning resources required each cycle.',
+      D: 'To consolidate Sales, Marketing, and Demand Planning under a single team.'
     },
-    slideRefs: '31, 33',
+    slideRefs: '2, 4',
     section: 'Why we\'re changing'
   },
   {
     id: 2,
-    text: 'What does the "wooden bridge" framing represent in the new process?',
+    text: 'Which statement best describes the role of the Daybreak statistical baseline in the new process?',
     options: {
-      A: 'A temporary fix that will be discarded once Logility is upgraded.',
-      B: 'An interim, measurable, audit-friendly process that delivers improvements now while preparing for a future demand planning platform.',
-      C: 'The data pipeline connecting Daybreak to Logility.',
-      D: 'The reconciliation between Marketing and Demand Planning views.'
+      A: 'Daybreak produces the final forecast used directly by Supply Planning; no further input is needed.',
+      B: 'Daybreak models baseline demand behavior; commercial input must be added through enrichments to capture what the historical data cannot see.',
+      C: 'Sales, Marketing, and Demand Planning each maintain independent baselines that are reconciled at year-end.',
+      D: 'The baseline replaces all commercial input; enrichments are optional refinements.'
     },
-    slideRefs: '5',
+    slideRefs: '4, 5',
     section: 'End-to-end picture'
   },
   {
     id: 3,
-    text: 'Which of the following is TRUE about the Daybreak statistical baseline?',
+    text: 'Which statement is correct about the Daybreak statistical baseline?',
     options: {
-      A: 'It is a "black box" that cannot be audited.',
-      B: 'It is "prior to plans" by design — commercial plans are layered on top through enrichment.',
-      C: 'It uses last year\'s actuals + 5% as the forecast.',
-      D: 'It is updated by Sales each cycle.'
+      A: 'It is built by Sales each cycle based on customer commitments.',
+      B: 'It is set to the prior year\'s volume adjusted by a fixed growth factor.',
+      C: 'It uses Hasbro\'s real historical shipment data and item attributes — through machine learning — to predict future demand patterns.',
+      D: 'It is identical to the Financial Forecast and updated on the same cadence.'
     },
-    slideRefs: '9',
+    slideRefs: '8, 10',
     section: 'Statistical Baseline 101'
   },
   {
     id: 4,
-    text: 'Why does Daybreak use "Adjusted Demand" instead of raw shipment history?',
+    text: 'Which statement correctly describes the three-party operating model that produces the baseline?',
     options: {
-      A: 'To smooth out seasonality patterns.',
-      B: 'To prevent the model from learning a supply shortage (low fill rate) as if it were a drop in true demand.',
-      C: 'To remove all outliers from history.',
-      D: 'To convert weekly demand into monthly buckets.'
-    },
-    slideRefs: '10',
-    section: 'Statistical Baseline 101'
-  },
-  {
-    id: 5,
-    text: 'In the three-party operating model that produces the baseline, who provides the statistical ML engine?',
-    options: {
-      A: 'Hasbro Demand Planning.',
-      B: 'Genpact.',
-      C: 'Daybreak.',
-      D: 'The Logility platform team.'
+      A: 'Daybreak provides the machine-learning engine; Genpact executes the operational tasks; Hasbro Demand Planning owns governance and sign-off.',
+      B: 'Genpact provides the engine; Daybreak validates the outputs; Hasbro Demand Planning sets the parameters.',
+      C: 'Hasbro Demand Planning generates the baseline; Genpact provides the model design; Daybreak hosts the data.',
+      D: 'All three parties contribute equally to model generation, validation, and sign-off.'
     },
     slideRefs: '11',
     section: 'Statistical Baseline 101'
   },
   {
-    id: 6,
-    text: 'For UK Fan items, which forecasting approach applies?',
+    id: 5,
+    text: 'Which SKUs are treated using Daybreak\'s standard machine-learning forecasting approach?',
     options: {
-      A: 'Standard Daybreak ML carry-forward.',
-      B: 'NPI 2.0 cold-start curves.',
-      C: '100% enrichment — no statistical baseline; volume captured as Base Trend variations.',
-      D: 'Moving average from the past 12 months.'
+      A: 'All active SKUs in the portfolio, including new product introductions.',
+      B: 'Pure NPI items in their first 12 months of life.',
+      C: 'Carry-Forward items with at least 52 weeks of historical shipment data.',
+      D: 'Fan items, regardless of how much history they have.'
     },
-    slideRefs: '15',
+    slideRefs: '12, 13',
     section: 'SKU Types'
   },
   {
-    id: 7,
-    text: 'For NPI items in the cold-start phase (0–8 weeks), which method does NPI 2.0 use?',
+    id: 6,
+    text: 'How is an NPI\'s forecast generated during its cold-start phase (0–8 weeks of history)?',
     options: {
-      A: 'Like-item forecasting (copy a predecessor\'s history).',
-      B: 'Brand Plan annual volume shaped by learned weekly shape + level models trained on product attributes (category, launch timing, price).',
-      C: 'Last 13 weeks of actuals projected forward.',
-      D: 'Daybreak\'s standard carry-forward ML model.'
+      A: 'By shaping the Brand Plan annual volume with attribute-based shape and level models (category, launch timing, price tier).',
+      B: 'By copying the predecessor product\'s historical pattern.',
+      C: 'By projecting the first month of actuals forward.',
+      D: 'By applying Daybreak\'s carry-forward model with extrapolated history.'
     },
     slideRefs: '14',
     section: 'SKU Types'
   },
   {
-    id: 8,
-    text: 'At which planning level does Daybreak generate the statistical baseline?',
+    id: 7,
+    text: 'Why are UK Fan items handled without a statistical baseline?',
     options: {
-      A: 'L1 (Customer × SKU × Channel).',
-      B: 'L2 (Planning SKU / Customer).',
-      C: 'L3 (Parent SKU / BU / Channel).',
-      D: 'L5 (Brand / BU).'
+      A: 'Daybreak\'s licensing model prevents its use on Fan products.',
+      B: 'Fan volume is too small to justify the model\'s processing cost.',
+      C: 'Fan items are forecasted in a separate system maintained by Marketing.',
+      D: 'Fan demand is driven by entertainment events with no recurring pattern; historical data cannot meaningfully predict future demand. Marketing and Commercial build the forecast directly.'
+    },
+    slideRefs: '15',
+    section: 'SKU Types'
+  },
+  {
+    id: 8,
+    text: 'At which planning level is the Daybreak statistical baseline generated?',
+    options: {
+      A: 'Planning Level 1 — Customer × Planning SKU × Channel.',
+      B: 'Planning Level 2 — Planning SKU × Customer.',
+      C: 'Planning Level 3 — Parent SKU × Business Unit × Channel.',
+      D: 'Planning Level 5 — Brand × Business Unit.'
     },
     slideRefs: '10, 16',
     section: 'Disaggregation'
   },
   {
     id: 9,
-    text: 'For NPI disaggregation, the customer split at L2 is based on which input?',
+    text: 'What is the purpose of forecast disaggregation in the new process?',
     options: {
-      A: 'The SKU\'s own moving-average shipment history.',
-      B: 'Brand-level historical customer mix (substituting for the SKU\'s missing history).',
-      C: 'Sales Forecast proportions.',
-      D: 'A flat equal distribution across all customers.'
+      A: 'To convert weekly forecasts into monthly buckets for financial reporting.',
+      B: 'To translate the Consensus Forecast into the Financial Forecast for the budget cycle.',
+      C: 'To split the forecast between Domestic and Direct Import channels.',
+      D: 'To break the L3 statistical baseline down to the Customer × Planning SKU × Channel level (L1), so that Sales can review and enrich the forecast at the level where commercial decisions are made.'
     },
-    slideRefs: '17, 21',
+    slideRefs: '16',
     section: 'Disaggregation'
   },
   {
     id: 10,
-    text: 'A parent SKU has variants A (70%) and B (30%) per P2M. Wal-Mart only carries variant A. What ensures Wal-Mart\'s volume is fully allocated to variant A and not split 70/30?',
+    text: 'How does the disaggregation method differ between a Carry-Forward item and an NPI item?',
     options: {
-      A: 'The Moving Average Model auto-corrects this within 3 months.',
-      B: 'The Forecasting Range setup at the customer × SKU level — variant B is excluded from Wal-Mart\'s Range.',
-      C: 'KAMs manually re-enter the correct split each cycle.',
-      D: 'Genpact reviews the disaggregation and corrects it.'
+      A: 'Both methods are identical — only the source system differs.',
+      B: 'Carry-Forward uses the SKU\'s own statistical proportionality based on its history; NPI uses brand-level historical customer mix combined with P2M volume splits, because the NPI has no shipment history of its own.',
+      C: 'Carry-Forward is disaggregated manually; NPI is disaggregated automatically.',
+      D: 'Carry-Forward is disaggregated only at L1; NPI only at L3.'
+    },
+    slideRefs: '17, 19, 20, 21',
+    section: 'Disaggregation'
+  },
+  {
+    id: 11,
+    text: 'What is the purpose of the Forecasting Range?',
+    options: {
+      A: 'It controls when Daybreak runs the statistical model for each cycle.',
+      B: 'It defines, per customer × SKU, the period during which the customer should receive baseline disaggregation. Outside that period, the customer is excluded from the disaggregation logic.',
+      C: 'It sets the look-back window used by the Logility Moving Average Model.',
+      D: 'It determines the timing of the Joint Marketing & Demand Planning Reconciliation Session.'
     },
     slideRefs: '22',
     section: 'Disaggregation'
   },
   {
-    id: 11,
-    text: 'An item has a normal carry-forward pattern and no new promotion is planned. What enrichment should you enter?',
+    id: 12,
+    text: 'Which statement best describes when an enrichment should be applied to the baseline?',
     options: {
-      A: 'Enter a placeholder enrichment to confirm the baseline is accepted.',
-      B: 'Nothing — the baseline already handles seasonality and trend.',
-      C: 'Enter a Base Trend Adjustment to confirm the SKU is active.',
-      D: 'Enter a Sample enrichment of zero units.'
+      A: 'On every SKU in the portfolio, each cycle, to confirm review.',
+      B: 'Only when Marketing or Demand Planning requests an adjustment.',
+      C: 'Only for events the statistical baseline cannot see — known commercial activity, structural changes, supply-related shifts, or committed plans.',
+      D: 'Only when the forecast is below the Financial Forecast target.'
     },
     slideRefs: '25',
     section: 'Enrichment Principles'
   },
   {
-    id: 12,
-    text: 'Which of the five core L1 commercial enrichment types is the ONLY one that requires capturing driver attributes (discount %, mechanic, start/end dates)?',
-    options: {
-      A: 'Sets.',
-      B: 'Retail Promos.',
-      C: 'TMO (pallet / PDQ).',
-      D: 'Pre-Orders.'
-    },
-    slideRefs: '26',
-    section: 'Enrichment Principles'
-  },
-  {
     id: 13,
-    text: 'How does Marketing push back on a Sales forecast they consider too optimistic?',
+    text: 'What is the purpose of the Joint Marketing & Demand Planning Reconciliation Session?',
     options: {
-      A: 'Marketing edits the Sales L1 enrichment values directly in HERO.',
-      B: 'Marketing escalates to the GM to override the Sales number.',
-      C: 'Marketing applies a top-down Base Trend Adjustment at BU level in the Joint M&DP Reconciliation Session — they cannot edit L1 enrichments directly.',
-      D: 'Marketing waits until the next cycle to flag the disagreement.'
+      A: 'To allow Marketing to override Sales\' L1 enrichments in cases where Marketing has better visibility.',
+      B: 'To finalize the Daybreak baseline before it is loaded to Logility for the cycle.',
+      C: 'To replace the legacy Brand DMR meetings that exist today in North America.',
+      D: 'To combine the bottom-up commercial view with top-down statistical and brand-strategic views, apply BU-level corrections, and prepare the proposal for Executive Sign-Off.'
     },
     slideRefs: '32',
     section: 'Reconciliation'
   },
   {
     id: 14,
-    text: 'In the UK pilot, who owns Base Trend adjustments at the SKU × BU level (Level 2.5)?',
+    text: 'In the UK pilot, which statement correctly describes the scope split between Key Account Managers (KAMs) and Brand Captains?',
     options: {
-      A: 'Key Account Managers (KAMs).',
-      B: 'Brand Captains.',
-      C: 'Demand Planning analysts.',
-      D: 'Marketing / GBT.'
+      A: 'Both roles can edit the baseline at any planning level; the most recent edit wins.',
+      B: 'Brand Captains own SKU × BU-level (Level 2.5) Base Trend adjustments. KAMs capture account-specific enrichments and account-level deltas at L1; baseline adjustments by KAMs are exceptions, not the default.',
+      C: 'Only Demand Planning can adjust the baseline; both KAMs and Brand Captains submit requests for review.',
+      D: 'The KAM owns baseline adjustments at all levels; the Brand Captain reviews after the fact.'
     },
     slideRefs: '33',
     section: 'UK Pilot Roles'
   },
   {
     id: 15,
-    text: 'In the 2026 UK pilot, how does HERO start each cycle for Brand Captains?',
+    text: 'In the 2026 UK pilot, how does HERO present the starting forecast to Brand Captains at the beginning of each cycle?',
     options: {
-      A: 'Empty — Captains build the forecast from scratch.',
-      B: 'Pre-populated with the Daybreak baseline only; Captains adjust everything else.',
-      C: 'Pre-populated with the deltas between Daybreak baseline and current resultant, so Captains only capture changes they want to MOVE the resultant — no manual matching required.',
-      D: 'Pre-populated with the previous month\'s consensus forecast.'
+      A: 'Empty — Brand Captains build the forecast from scratch each cycle.',
+      B: 'Pre-populated with the prior month\'s consensus forecast.',
+      C: 'Pre-populated with the Daybreak baseline only; Captains rebuild everything else manually.',
+      D: 'Pre-populated with the deltas between the Daybreak baseline and the current resultant forecast. Captains capture only the changes they intend to move the resultant — no manual matching is required.'
     },
     slideRefs: '33',
     section: 'End-to-end Workflow'
   },
   {
     id: 16,
-    text: 'In the 2027 target operating model, how does the process change for Brand Captains?',
+    text: 'In the 2027 target operating model, how does the Brand Captain\'s role differ from the 2026 pilot?',
     options: {
-      A: 'Captains no longer participate; the process becomes fully automated.',
-      B: 'Captains receive a pre-populated forecast and only confirm it.',
-      C: 'Captains start from the Daybreak baseline directly. Every correction tied to commercial or supply events affecting the projection requires a Base Trend adjustment.',
-      D: 'Captains operate exclusively at L1 (customer level).'
+      A: 'Brand Captains start from the Daybreak baseline directly. Corrections for commercial or supply events affecting the forecast are captured as Base Trend adjustments.',
+      B: 'Brand Captains are removed; cycles run fully automated.',
+      C: 'Brand Captains operate exclusively at Level 1 (customer level), with KAMs handling BU-level decisions.',
+      D: 'Brand Captains review a pre-populated forecast and confirm without modification.'
     },
     slideRefs: '33',
     section: 'End-to-end Workflow'
