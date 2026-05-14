@@ -1,7 +1,6 @@
 'use strict';
 
-// ── Config ───────────────────────────────────────────────────────────────────
-// Replace with your deployed Apps Script Web App URL after setup
+// ── Config ───────────────────────────────────────────────────────────────────────────────
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwZLIenD2Ef1-B5BSzFDsrFDNezDM_jWuT9JrmYdQTv4wSzswFOxJgyp67Y6z24-r_mOw/exec';
 
 const PASS_THRESHOLD = 13; // ≥13/16 = pass
@@ -234,7 +233,7 @@ const ROLES = [
   'Other'
 ];
 
-// ── State ─────────────────────────────────────────────────────────────────────
+// ── State ───────────────────────────────────────────────────────────────────────────────
 let state = {
   screen: 'welcome',      // welcome | identity | question | confirm | results | submitting
   questionIndex: 0,       // 0-based, 0 = Q1
@@ -249,7 +248,7 @@ let state = {
   submitError: null
 };
 
-// ── Persistence ───────────────────────────────────────────────────────────────
+// ── Persistence ───────────────────────────────────────────────────────────────────────────
 function saveState() {
   try {
     localStorage.setItem(LS_KEY, JSON.stringify(state));
@@ -274,7 +273,7 @@ function clearState() {
   try { localStorage.removeItem(LS_KEY); } catch (_) {}
 }
 
-// ── DOM helpers ───────────────────────────────────────────────────────────────
+// ── DOM helpers ───────────────────────────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
 const show = el => el && el.classList.remove('hidden');
 const hide = el => el && el.classList.add('hidden');
@@ -286,7 +285,7 @@ function setScreen(name) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-// ── Navigation ────────────────────────────────────────────────────────────────
+// ── Navigation ────────────────────────────────────────────────────────────────────────
 function goWelcome() {
   state.screen = 'welcome';
   setScreen('welcome');
@@ -321,12 +320,12 @@ function goResults(results) {
   clearState(); // submission done — clear persisted in-progress state
 }
 
-// ── Welcome screen ────────────────────────────────────────────────────────────
+// ── Welcome screen ────────────────────────────────────────────────────────────────────────
 function initWelcome() {
   $('btn-start').addEventListener('click', () => goIdentity());
 }
 
-// ── Identity screen ───────────────────────────────────────────────────────────
+// ── Identity screen ───────────────────────────────────────────────────────────────────────
 function initIdentity() {
   // Render role options
   const grid = $('role-grid');
@@ -409,7 +408,7 @@ function submitIdentity() {
   goQuestion(0);
 }
 
-// ── Question screen ───────────────────────────────────────────────────────────
+// ── Question screen ───────────────────────────────────────────────────────────────────────
 function renderQuestion(index) {
   const q = QUESTIONS[index];
   const num = index + 1;
@@ -488,7 +487,7 @@ function initQuestion() {
   });
 }
 
-// ── Confirm screen ────────────────────────────────────────────────────────────
+// ── Confirm screen ────────────────────────────────────────────────────────────────────────
 function renderConfirm() {
   const answered = Object.keys(state.answers).length;
   $('confirm-answered').textContent = `${answered} of ${TOTAL_QUESTIONS} questions answered`;
@@ -500,7 +499,7 @@ function initConfirm() {
   $('btn-go-back').addEventListener('click', () => goQuestion(TOTAL_QUESTIONS - 1));
 }
 
-// ── Submit ────────────────────────────────────────────────────────────────────
+// ── Submit ───────────────────────────────────────────────────────────────────────────────
 async function submitQuiz() {
   // Build payload
   const payload = {
@@ -533,7 +532,7 @@ async function submitQuiz() {
   goResults(result);
 }
 
-// ── Results screen ────────────────────────────────────────────────────────────
+// ── Results screen ────────────────────────────────────────────────────────────────────────
 function renderResults(data) {
   const { score, total, percent, pass, failed_questions } = data;
   const pctDisplay = Math.round(percent);
@@ -604,7 +603,7 @@ function retakeQuiz() {
   goWelcome();
 }
 
-// ── Resume prompt ─────────────────────────────────────────────────────────────
+// ── Resume prompt ─────────────────────────────────────────────────────────────────────────
 function checkResume(saved) {
   if (!saved) return false;
 
@@ -647,7 +646,7 @@ function restoreIdentityFields() {
   if (state.userData.roleOther) $('input-role-other').value = state.userData.roleOther;
 }
 
-// ── Util ──────────────────────────────────────────────────────────────────────
+// ── Util ───────────────────────────────────────────────────────────────────────────────
 function escHtml(str) {
   return String(str)
     .replace(/&/g, '&amp;')
@@ -656,7 +655,7 @@ function escHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
-// ── Boot ──────────────────────────────────────────────────────────────────────
+// ── Boot ───────────────────────────────────────────────────────────────────────────────
 function init() {
   initWelcome();
   initIdentity();
@@ -673,9 +672,9 @@ function init() {
 
 document.addEventListener('DOMContentLoaded', init);
 
-// ══════════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════════
 // DASHBOARD
-// ══════════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════════
 
 const DASH_HASH    = '3112727bdedc9e678230b70a47eb12222f8e6da33f24a9c5539f50cf4c84359c';
 const DASH_LS_KEY  = 'mod1_dash_unlocked';
@@ -684,7 +683,7 @@ const DASH_EXPIRY  = 8 * 60 * 60 * 1000; // 8 hours
 let dashRows   = [];   // all rows from Sheet
 let dashFiltered = []; // rows after date filter
 
-// ── Init ──────────────────────────────────────────────────────────────────────
+// ── Init ───────────────────────────────────────────────────────────────────────────────
 function initDashboard() {
   $('btn-open-dashboard').addEventListener('click', () => {
     setScreen('dashboard');
@@ -709,7 +708,7 @@ function initDashboard() {
   $('dash-lookup-input').addEventListener('keydown', e => { if (e.key === 'Enter') runLookup(); });
 }
 
-// ── Auth ──────────────────────────────────────────────────────────────────────
+// ── Auth ───────────────────────────────────────────────────────────────────────────────
 function checkDashAuth() {
   const stored = localStorage.getItem(DASH_LS_KEY);
   if (stored && Date.now() - parseInt(stored) < DASH_EXPIRY) {
@@ -747,7 +746,7 @@ async function sha256(str) {
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-// ── Load data ─────────────────────────────────────────────────────────────────
+// ── Load data ─────────────────────────────────────────────────────────────────────────
 async function showDashContent() {
   hide($('dash-gate'));
   show($('dash-content'));
@@ -779,7 +778,7 @@ function populateRoleFilter() {
     allRoles.map(r => `<option value="${escHtml(r)}" ${r === current ? 'selected' : ''}>${escHtml(r)}</option>`).join('');
 }
 
-// ── Date filter ───────────────────────────────────────────────────────────────
+// ── Date filter ─────────────────────────────────────────────────────────────────────────
 function applyDateFilter() {
   const from = $('dash-date-from').value;
   const to   = $('dash-date-to').value;
@@ -813,7 +812,7 @@ function clearDateFilter() {
   renderDash();
 }
 
-// ── Render all ────────────────────────────────────────────────────────────────
+// ── Render all ────────────────────────────────────────────────────────────────────────────
 function renderDash() {
   renderKPIs();
   renderDonut();
@@ -822,7 +821,7 @@ function renderDash() {
   renderTable();
 }
 
-// ── KPIs ──────────────────────────────────────────────────────────────────────
+// ── KPIs ───────────────────────────────────────────────────────────────────────────────
 function renderKPIs() {
   const rows   = dashFiltered;
   const total  = rows.length;
@@ -847,7 +846,7 @@ function renderKPIs() {
   ).join('');
 }
 
-// ── Donut chart ───────────────────────────────────────────────────────────────
+// ── Donut chart ──────────────────────────────────────────────────────────────────────────────
 function renderDonut() {
   const canvas = $('chart-donut');
   const ctx    = canvas.getContext('2d');
@@ -898,7 +897,7 @@ function renderDonut() {
      <span style="color:#F87171;">● Fail ${fails}</span>`;
 }
 
-// ── Histogram ─────────────────────────────────────────────────────────────────
+// ── Histogram ───────────────────────────────────────────────────────────────────────────────
 function renderHistogram() {
   const canvas = $('chart-hist');
   const ctx    = canvas.getContext('2d');
@@ -964,7 +963,7 @@ function renderHistogram() {
   ctx.setLineDash([]);
 }
 
-// ── Heatmap ───────────────────────────────────────────────────────────────────
+// ── Heatmap ───────────────────────────────────────────────────────────────────────────────
 function renderHeatmap() {
   const rows = dashFiltered;
   const total = rows.length || 1;
@@ -994,7 +993,7 @@ function renderHeatmap() {
   }).join('');
 }
 
-// ── Lookup ────────────────────────────────────────────────────────────────────
+// ── Lookup ───────────────────────────────────────────────────────────────────────────────
 function runLookup() {
   const query  = $('dash-lookup-input').value.trim().toLowerCase();
   const result = $('dash-lookup-result');
@@ -1023,7 +1022,7 @@ function runLookup() {
   }).join('');
 }
 
-// ── Table ─────────────────────────────────────────────────────────────────────
+// ── Table ───────────────────────────────────────────────────────────────────────────────
 function renderTable() {
   const rows = dashFiltered;
   $('dash-count').textContent = rows.length + ' record(s)';
