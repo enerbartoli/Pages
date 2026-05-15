@@ -10,7 +10,7 @@ const LS_KEY            = 'mod2_quiz_state';
 const ANSWER_KEY = {
   Q1:'A', Q2:'B', Q3:'C', Q4:'C', Q5:'D',
   Q6:'B', Q7:'B', Q8:'C', Q9:'A', Q10:'A',
-  Q11:'D', Q12:'C', Q13:'C', Q14:'D', Q15:'B'
+  Q11:'D', Q12:'C', Q13:'A', Q14:'D', Q15:'B'
 };
 
 function scoreAnswers(answers) {
@@ -71,15 +71,15 @@ const QUESTIONS = [
   },
   {
     id: 4,
-    text: 'A Warm Start NPI has 16 weeks of actuals that came in below the 2026 Resultant plan. Daybreak interprets this as a structural correction and slashes the 2027 baseline by more than half. The item still has under 12 months of history. What is the correct action?',
+    text: 'A Warm Start NPI with under 12 months of history has 16 weeks of actuals below the 2026 Resultant plan, and Daybreak has slashed the 2027 baseline by more than half. After reviewing together, you and the Brand Captain agree Daybreak\'s drop is too aggressive and the SKU can still rebound. What is the correct action?',
     options: {
-      A: 'Accept the Daybreak 2027 baseline — 16 weeks of actuals is a strong signal.',
-      B: 'Apply a negative base trend in 2026 to match the Daybreak 2027 view.',
-      C: 'Recalculate overall demand with Brand Captain and Sales input, preserving NPI logic.',
-      D: 'Phase the item out — the early sell-in is signaling end of life.'
+      A: 'Accept the Daybreak 2027 baseline — 16 weeks of actuals is sufficient to confirm the structural decline.',
+      B: 'Apply negative sets in each under-performing month to align the forecast to Daybreak\'s corrected view.',
+      C: 'Recalculate overall demand and apply an L2.5 Base Trend adjustment via the Brand Captain\'s reconciliation template.',
+      D: 'Submit a disaggregation request to DP/Genpact to redistribute the volume across a wider customer base.'
     },
     slideRefs: '9, 10',
-    rationale: 'Sixteen weeks of actuals on an NPI with under twelve months of history is not enough signal to justify a structural reset of the next-year baseline, so the team recalculates demand together to balance the model\'s signal against commercial knowledge.',
+    rationale: 'When the team has assessed that Daybreak\'s reduction is too aggressive — not enough history for a structural reset — the correct path is to recalculate demand with commercial knowledge and lock the agreed view via an L2.5 Base Trend adjustment using the Brand Captain\'s template.',
     section: 'Baseline Training'
   },
   {
@@ -188,16 +188,16 @@ const QUESTIONS = [
   },
   {
     id: 13,
-    text: 'A Warm Start NPI with under 12 months of history has 16 weeks of actuals below the 2026 Resultant plan, and Daybreak has slashed the 2027 baseline by more than half. After reviewing together, you and the Brand Captain agree Daybreak\'s drop is too aggressive and the SKU can still rebound. What is the correct action?',
+    text: 'A specific customer has discontinued an item that remains active at other customers. The baseline is still allocating volume to the dropped customer based on past proportions. What is the correct action?',
     options: {
-      A: 'Accept Daybreak\'s revised baseline — 16 weeks of actuals is sufficient to confirm the structural decline.',
-      B: 'Apply negative sets in each under-performing month to align the forecast to Daybreak\'s corrected view.',
-      C: 'Recalculate overall demand and apply an L2.5 Base Trend adjustment via the Brand Captain\'s reconciliation template.',
-      D: 'Submit a disaggregation request to DP/Genpact to redistribute the volume across a wider customer base.'
+      A: 'Apply a negative base trend and update the forecasting range to stop allocating to that customer.',
+      B: 'Wait — the model will reduce the customer\'s share once actuals show zero.',
+      C: 'Submit a disaggregation request to remove the customer from the L2 split.',
+      D: 'Apply a one-time negative set for the year, then let the baseline rebuild.'
     },
-    slideRefs: '9, 10',
-    rationale: 'When the team has assessed that Daybreak\'s reduction is too aggressive — not enough history for a structural reset — the correct path is to recalculate demand with commercial knowledge and lock the agreed view via an L2.5 Base Trend adjustment using the Brand Captain\'s template.',
-    section: 'Baseline Training'
+    slideRefs: '44',
+    rationale: 'A customer exit is a structural change — base trend removes the phantom volume while the forecasting-range update prevents the model from continuing to route demand to a customer that no longer takes the item.',
+    section: 'Base Trend Corrections'
   },
   {
     id: 14,
