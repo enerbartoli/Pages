@@ -523,6 +523,19 @@ function scoreSubmission_mod2(answers) {
   return { score: score, percent: percent, pass: score >= PASS_THRESHOLD_MOD2, results: results, failedQNums: failedQNums };
 }
 
+function computeAttemptNumber(emailLower, moduleId, sheet) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return 1;
+  var count = 1;
+  var data = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).getValues();
+  for (var i = 0; i < data.length; i++) {
+    var rowEmail  = String(data[i][2]  || '').toLowerCase(); // col C = email
+    var rowModule = String(data[i][43] || '').toLowerCase(); // col AN = module
+    if (rowEmail === emailLower && rowModule === moduleId) count++;
+  }
+  return count;
+}
+
 function appendToSheet_mod2(payload, scoreResult) {
   var ss    = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(SHEET_NAME);
