@@ -281,9 +281,21 @@
       </div>
 
       <!-- KPI cards -->
-      <div id="dash-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:16px;"></div>
+      <div id="dash-kpis" style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;"></div>
 
-      <!-- Charts row -->
+      <!-- Pass rate by role — any attempt + first attempt (2 col) -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div class="card" style="padding:20px 24px;">
+          <p class="dash-chart-title">Pass rate by role — any attempt</p>
+          <div id="dash-role-pass"></div>
+        </div>
+        <div class="card" style="padding:20px 24px;">
+          <p class="dash-chart-title">Pass rate by role — first attempt only</p>
+          <div id="dash-role-first"></div>
+        </div>
+      </div>
+
+      <!-- Charts row (Pass / Fail + Score distribution) -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
         <div class="card" style="padding:20px;">
           <p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--gray-muted);margin-bottom:16px;">Pass / Fail</p>
@@ -296,29 +308,17 @@
         </div>
       </div>
 
-      <!-- Question failure heatmap -->
-      <div class="card" style="padding:20px 24px;">
-        <p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--gray-muted);margin-bottom:16px;">Question failure rate</p>
-        <div id="dash-heatmap"></div>
-      </div>
-
-      <!-- Pass rate by role — any attempt -->
-      <div class="card" style="padding:20px 24px;">
-        <p class="dash-chart-title">Pass rate by role — any attempt</p>
-        <div id="dash-role-pass"></div>
-      </div>
-
-      <!-- Pass rate by role — first attempt only -->
-      <div class="card" style="padding:20px 24px;">
-        <p class="dash-chart-title">Pass rate by role — first attempt only</p>
-        <div id="dash-role-first"></div>
-      </div>
-
-      <!-- Attempts required to pass -->
+      <!-- Attempts required to pass (before heatmap) -->
       <div class="card" style="padding:20px 24px;">
         <p class="dash-chart-title">Attempts required to pass</p>
         <canvas id="chart-attempts" width="520" height="190" style="display:block;margin:0 auto;max-width:100%;"></canvas>
         <p id="chart-attempts-note" class="muted" style="font-size:11px;margin-top:8px;text-align:center;"></p>
+      </div>
+
+      <!-- Question failure heatmap -->
+      <div class="card" style="padding:20px 24px;">
+        <p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--gray-muted);margin-bottom:16px;">Question failure rate</p>
+        <div id="dash-heatmap"></div>
       </div>
 
       <!-- Email lookup -->

@@ -871,8 +871,8 @@ function renderKPIs() {
   ];
 
   $('dash-kpis').innerHTML = kpis.map(k =>
-    `<div class="kpi-card">
-      <div class="kpi-val" style="color:${k.color};">${k.val}</div>
+    `<div class="kpi-card" style="padding:14px 8px;">
+      <div class="kpi-val" style="color:${k.color};font-size:26px;">${k.val}</div>
       <div class="kpi-label">${k.label}</div>
     </div>`
   ).join('');
@@ -1291,33 +1291,37 @@ function showDrillDown(qNum) {
 
   const correctLetter = ANSWER_KEY['Q' + qNum];
   const rows = dashFiltered;
-  const total = rows.length || 1;
 
-  // Count wrong-answer option selections
-  const wrongPicks = { A: 0, B: 0, C: 0, D: 0 };
-  let totalWrong = 0;
-  let failCount  = 0;
+  // Count all selections per option (correct + incorrect)
+  const picks = { A: 0, B: 0, C: 0, D: 0 };
+  let totalResponses = 0;
+  let hasAnswerData = false;
+
   rows.forEach(r => {
     if (!r.answers) return;
     const given = (r.answers['Q' + qNum] || '').toUpperCase();
-    if (!given) return;
-    if (given !== correctLetter) {
-      wrongPicks[given] = (wrongPicks[given] || 0) + 1;
-      totalWrong++;
-      failCount++;
-    }
+    if (!['A', 'B', 'C', 'D'].includes(given)) return;
+    picks[given]++;
+    totalResponses++;
+    hasAnswerData = true;
   });
 
-  const failPct = Math.round((failCount / total) * 100);
+  const failCount = totalResponses - (picks[correctLetter] || 0);
+  const failPct   = totalResponses ? Math.round((failCount / totalResponses) * 100) : 0;
 
   const optionsHTML = ['A', 'B', 'C', 'D'].map(letter => {
     const isCorrect = letter === correctLetter;
-    const picked    = wrongPicks[letter] || 0;
-    const wrongPct  = totalWrong ? Math.round((picked / totalWrong) * 100) : 0;
-    const cls = isCorrect ? 'correct' : (picked > 0 ? 'wrong-picked' : 'not-picked');
-    const statHTML = isCorrect
-      ? `<div class="drill-option-stat">✓ Correct answer</div>`
-      : (picked > 0 ? `<div class="drill-option-stat">${picked} selection${picked !== 1 ? 's' : ''} — ${wrongPct}% of wrong answers</div>` : '');
+    const count     = picks[letter] || 0;
+    const pct       = totalResponses ? Math.round((count / totalResponses) * 100) : 0;
+    const cls       = isCorrect ? 'correct' : (count > 0 ? 'wrong-picked' : 'not-picked');
+    let statHTML = '';
+    if (hasAnswerData) {
+      statHTML = isCorrect
+        ? `<div class="drill-option-stat">✓ Correct — ${count} selected (${pct}%)</div>`
+        : `<div class="drill-option-stat">${count} selected (${pct}%)</div>`;
+    } else if (isCorrect) {
+      statHTML = `<div class="drill-option-stat">✓ Correct answer</div>`;
+    }
     return `<div class="drill-option ${cls}">
       <span class="drill-option-letter">${letter}</span>
       <div class="drill-option-text">
@@ -1327,14 +1331,15 @@ function showDrillDown(qNum) {
     </div>`;
   }).join('');
 
-  const noDataNote = !rows.some(r => r.answers)
-    ? '<p class="muted" style="font-size:12px;margin-bottom:12px;">Per-option breakdown not available for submissions before this feature was enabled.</p>'
+  const noDataNote = !hasAnswerData
+    ? '<p class="muted" style="font-size:12px;margin-bottom:12px;">Breakdown por opción requiere redesplegar Apps Script — los nuevos submissions lo poblarán automáticamente.</p>'
     : '';
 
+  const displayTotal = totalResponses || rows.length;
   $('drill-content').innerHTML = `
     <div class="drill-q-num">Question ${qNum} · ${escHtml(q.section)}</div>
     <div class="drill-q-text">${escHtml(q.text)}</div>
-    <div class="drill-fail-rate">${failPct}% failure rate (${failCount} of ${total} submission${total !== 1 ? 's' : ''})</div>
+    <div class="drill-fail-rate">${failPct}% failure rate (${failCount} of ${displayTotal} submission${displayTotal !== 1 ? 's' : ''})</div>
     ${noDataNote}
     ${optionsHTML}
     <div class="drill-slide-ref">📖 Slide${q.slideRefs.includes(',') ? 's' : ''} ${escHtml(q.slideRefs)}</div>
