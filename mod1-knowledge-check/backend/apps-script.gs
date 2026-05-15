@@ -131,7 +131,9 @@ function doGet(e) {
         score:      r[5] || 0,
         percent:    r[6] || 0,
         status:     r[7] || '',
-        failed:     r[40] || ''
+        failed:     r[40] || '',
+        module:     r[43] || 'mod1',
+        attempt:    r[44] || 1
       });
     }
     return buildResponse({ rows: rows });
@@ -530,7 +532,7 @@ function computeAttemptNumber(emailLower, moduleId, sheet) {
   var data = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).getValues();
   for (var i = 0; i < data.length; i++) {
     var rowEmail  = String(data[i][2]  || '').toLowerCase(); // col C = email
-    var rowModule = String(data[i][43] || '').toLowerCase(); // col AN = module
+    var rowModule = String(data[i][43] || '').toLowerCase(); // col AR = module
     if (rowEmail === emailLower && rowModule === moduleId) count++;
   }
   return count;
