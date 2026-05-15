@@ -13,6 +13,7 @@ const TOTAL_QUESTIONS = 16;
 // QUIZ_CLOSED flag — flip to true to stop accepting submissions after the pilot
 const QUIZ_CLOSED = false;
 const QUIZ_URL    = 'https://enerbartoli.github.io/mod1-knowledge-check/';
+const MODULE_ID   = 'mod1'; // identifier used in multi-module sheet
 
 // ── Answer Key (server-side only — never exposed to the browser) ──────────────
 const ANSWER_KEY = {
@@ -67,16 +68,27 @@ function doGet(e) {
     var rows = [];
     for (var i = 1; i < data.length; i++) {
       var r = data[i];
+      var answers = {};
+      for (var q = 1; q <= TOTAL_QUESTIONS; q++) {
+        answers['Q' + q] = String(r[8 + (q - 1) * 2] || '').toUpperCase();
+      }
       rows.push({
-        timestamp:  r[0] ? new Date(r[0]).toISOString() : '',
-        name:       r[1] || '',
-        email:      r[2] || '',
-        role:       r[3] || '',
-        score:      r[5] || 0,
-        percent:    r[6] || 0,
-        status:     r[7] || '',
-        failed:     r[40] || ''
+        timestamp:      r[0] ? new Date(r[0]).toISOString() : '',
+        name:           r[1] || '',
+        email:          r[2] || '',
+        role:           r[3] || '',
+        score:          r[5] || 0,
+        percent:        r[6] || 0,
+        status:         r[7] || '',
+        failed:         r[40] || '',
+        module:         r[43] || 'mod1',
+        attempt_number: r[44] || 1,
+        answers:        answers
       });
+    }
+    var moduleParam = e && e.parameter && e.parameter.module ? String(e.parameter.module) : '';
+    if (moduleParam) {
+      rows = rows.filter(function(row) { return row.module === moduleParam; });
     }
     return buildResponse({ rows: rows });
   }
@@ -183,6 +195,19 @@ function scoreSubmission(answers) {
   };
 }
 
+// ── Attempt counter ───────────────────────────────────────────────────────────
+function computeAttemptNumber(email, moduleId, sheet) {
+  if (!sheet || sheet.getLastRow() < 2) return 1;
+  var data = sheet.getDataRange().getValues();
+  var count = 0;
+  for (var i = 1; i < data.length; i++) {
+    var rowEmail  = String(data[i][2] || '').trim().toLowerCase();
+    var rowModule = String(data[i][43] || 'mod1').toLowerCase();
+    if (rowEmail === email && rowModule === moduleId) count++;
+  }
+  return count + 1;
+}
+
 // ── Sheet ─────────────────────────────────────────────────────────────────────
 function appendToSheet(payload, scoreResult) {
   var ss    = SpreadsheetApp.getActiveSpreadsheet();
@@ -195,6 +220,9 @@ function appendToSheet(payload, scoreResult) {
 
   // Ensure headers exist (first run)
   if (sheet.getLastRow() === 0) writeHeaders(sheet);
+
+  var moduleId      = String(payload.module || MODULE_ID).toLowerCase();
+  var attemptNumber = computeAttemptNumber(String(payload.email).trim().toLowerCase(), moduleId, sheet);
 
   var now  = new Date();
   var row  = [
@@ -216,10 +244,12 @@ function appendToSheet(payload, scoreResult) {
     row.push(r.correct);  // Correct?
   }
 
-  // Failed questions list, email sent flag, user-agent
+  // Failed questions list, email sent flag, user-agent, module, attempt_number
   row.push(scoreResult.failedQNums.join(', '));    // Failed Questions
   row.push(true);                                  // Email Sent? (set to true; update to false on error if needed)
   row.push((payload.userAgent || '').slice(0, 200));
+  row.push(moduleId);                              // Module
+  row.push(attemptNumber);                         // Attempt Number
 
   sheet.appendRow(row);
 
@@ -235,7 +265,7 @@ function writeHeaders(sheet) {
     headers.push('Q' + i + ' Answer');
     headers.push('Q' + i + ' Correct?');
   }
-  headers.push('Failed Questions', 'Email Sent?', 'User-Agent');
+  headers.push('Failed Questions', 'Email Sent?', 'User-Agent', 'Module', 'Attempt # (rows before this feature = 1)');
   sheet.appendRow(headers);
   sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
 }

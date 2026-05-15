@@ -74,6 +74,31 @@ See **SETUP.md** for full step-by-step instructions.
 | AK | Failed question numbers |
 | AL | Email Sent? |
 | AM | User-Agent |
+| AN | **Module** (e.g. `mod1`, `mod2`) |
+| AO | **Attempt Number** — count of prior submissions for this email + module, plus 1. Historic MOD 1 rows predate this field and default to 1 in the dashboard. |
+
+## Dashboard Analytics
+
+The results dashboard (password-gated, same page) includes:
+
+- **KPIs** — submissions, pass count, retry count, avg score, pass rate
+- **Pass/Fail donut** and **Score distribution histogram**
+- **Question failure rate** — click any bar for a drill-down showing full question text, all four answer options with ✓ on the correct answer, and a breakdown of how wrong answers were distributed across the other choices
+- **Pass rate by role** — overall (any attempt) and first-attempt-only, with a pinned Total bar
+- **Attempts required to pass** — frequency chart showing how many attempts passers needed
+
+### Module selector
+
+The dashboard header includes a **Module** dropdown:
+- **All modules** (default) — combined MOD 1 + MOD 2 data
+- **MOD 1 — Baseline & Workflow**
+- **MOD 2 — Enrichment Practice**
+
+Selection re-renders all charts without a page reload. State persists in the URL as `?module=mod1` so filtered views are shareable.
+
+### Data refresh
+
+Click **↻ Refresh data** in the dashboard header to re-fetch the Sheet without leaving the page. A "Last updated: HH:MM" timestamp is shown next to the button.
 
 ## Maintenance
 
@@ -81,6 +106,7 @@ See **SETUP.md** for full step-by-step instructions.
 - **Update a question:** Edit `quiz.js` (question text/options) and `apps-script.gs` (`QUESTION_TEXT`, `ANSWER_KEY`, `SLIDE_REFS`) together.
 - **Change pass threshold:** Update `PASS_THRESHOLD` in both `quiz.js` and `apps-script.gs`.
 - **Add a new deployment:** Always create a "New version" in Apps Script deployment manager — redeploying to the same version does not apply code changes.
+- **After any Apps Script change:** open the Apps Script editor → Deploy → Manage deployments → pencil icon on the active deployment → Version: "New version" → Deploy.
 
 ## License
 

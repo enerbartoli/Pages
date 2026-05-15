@@ -508,6 +508,7 @@ async function submitQuiz() {
     role: state.userData.role,
     roleOther: state.userData.roleOther,
     answers: state.answers,
+    module: 'mod1',
     userAgent: navigator.userAgent,
     quizUrl: window.location.href
   };
@@ -680,8 +681,11 @@ const DASH_HASH    = '3112727bdedc9e678230b70a47eb12222f8e6da33f24a9c5539f50cf4c
 const DASH_LS_KEY  = 'mod1_dash_unlocked';
 const DASH_EXPIRY  = 8 * 60 * 60 * 1000; // 8 hours
 
-let dashRows   = [];   // all rows from Sheet
-let dashFiltered = []; // rows after date filter
+let dashAllRows  = [];  // raw rows from server (never filtered)
+let dashRows     = [];  // module-filtered view of dashAllRows
+let dashFiltered = [];  // date/role-filtered view of dashRows
+let dashModule   = '';  // '', 'mod1', or 'mod2'
+let dashLastUpdated = null;
 
 // ── Init ───────────────────────────────────────────────────────────────────────────────
 function initDashboard() {
@@ -706,6 +710,20 @@ function initDashboard() {
   $('dash-clear-btn').addEventListener('click', clearDateFilter);
   $('dash-lookup-btn').addEventListener('click', runLookup);
   $('dash-lookup-input').addEventListener('keydown', e => { if (e.key === 'Enter') runLookup(); });
+
+  $('dash-module-select').addEventListener('change', function() {
+    dashModule = this.value;
+    const url = new URL(window.location);
+    dashModule ? url.searchParams.set('module', dashModule) : url.searchParams.delete('module');
+    history.replaceState(null, '', url);
+    dashRows     = filterByModule(dashAllRows, dashModule);
+    dashFiltered = dashRows;
+    populateRoleFilter();
+    const from = $('dash-date-from').value, to = $('dash-date-to').value, role = $('dash-role-filter').value;
+    if (from || to || role) applyDateFilter(); else renderDash();
+  });
+
+  $('btn-dash-refresh').addEventListener('click', refreshDash);
 }
 
 // ── Auth ───────────────────────────────────────────────────────────────────────────────
@@ -751,13 +769,24 @@ async function showDashContent() {
   hide($('dash-gate'));
   show($('dash-content'));
 
+  // Sync module selector from URL on first load
+  const urlMod = new URLSearchParams(window.location.search).get('module') || '';
+  if (urlMod !== dashModule) {
+    dashModule = urlMod;
+    const sel = $('dash-module-select');
+    if (sel) sel.value = dashModule;
+  }
+
   $('dash-table-wrap').innerHTML = '<p class="muted" style="font-size:13px;">Loading…</p>';
   $('dash-kpis').innerHTML = '';
 
   try {
     const res  = await fetch(APPS_SCRIPT_URL + '?action=getData');
     const data = await res.json();
-    dashRows     = (data.rows || []).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    dashAllRows  = (data.rows || []).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    dashLastUpdated = new Date();
+    updateLastUpdatedLabel();
+    dashRows     = filterByModule(dashAllRows, dashModule);
     dashFiltered = dashRows;
     populateRoleFilter();
     renderDash();
@@ -819,6 +848,9 @@ function renderDash() {
   renderHistogram();
   renderHeatmap();
   renderTable();
+  renderPassRateByRole(dashFiltered);
+  renderFirstAttemptPassRate(dashFiltered);
+  renderAttemptsToPAss(dashFiltered);
 }
 
 // ── KPIs ───────────────────────────────────────────────────────────────────────────────
@@ -983,7 +1015,7 @@ function renderHeatmap() {
   $('dash-heatmap').innerHTML = Object.entries(failCount).map(([q, count]) => {
     const pct   = Math.round((count / total) * 100);
     const color = pct >= 50 ? '#F87171' : pct >= 25 ? '#FFC72C' : '#14B8A6';
-    return `<div class="heatmap-row">
+    return `<div class="heatmap-row" style="cursor:pointer;" title="Q${q} — ${pct}% failed · click for details" onclick="showDrillDown(${q})">
       <span class="heatmap-label">Q${q}</span>
       <div class="heatmap-bar-track">
         <div class="heatmap-bar-fill" style="width:${pct}%;background:${color};"></div>
@@ -1062,4 +1094,259 @@ function renderTable() {
         }).join('')}
       </tbody>
     </table>`;
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// NEW ANALYTICS CHARTS (additive — all existing charts/functions above unchanged)
+// ════════════════════════════════════════════════════════════════════════════════
+
+// ── Module filter helpers ─────────────────────────────────────────────────────
+function filterByModule(rows, mod) {
+  if (!mod) return rows;
+  return rows.filter(r => (r.module || 'mod1') === mod);
+}
+
+function updateLastUpdatedLabel() {
+  const el = $('dash-last-updated');
+  if (!el || !dashLastUpdated) return;
+  const t = dashLastUpdated.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  el.textContent = 'Last updated: ' + t;
+}
+
+function refreshDash() {
+  showDashContent();
+}
+
+// ── Pass rate by role — any attempt ──────────────────────────────────────────
+function renderPassRateByRole(rows) {
+  const el = $('dash-role-pass');
+  if (!el) return;
+  if (!rows.length) { el.innerHTML = '<p class="muted" style="font-size:13px;">No data yet.</p>'; return; }
+
+  const roleMap = {};
+  rows.forEach(r => {
+    const role = r.role || 'Unknown';
+    if (!roleMap[role]) roleMap[role] = { unique: new Set(), passed: new Set() };
+    roleMap[role].unique.add(r.email);
+    if (r.status === 'Pass') roleMap[role].passed.add(r.email);
+  });
+
+  const entries = Object.entries(roleMap).map(([role, d]) => {
+    const n = d.unique.size, p = d.passed.size;
+    return { role, n, p, rate: n ? p / n : 0 };
+  }).sort((a, b) => b.rate - a.rate);
+
+  const allUnique = new Set(rows.map(r => r.email));
+  const allPassed = new Set(rows.filter(r => r.status === 'Pass').map(r => r.email));
+  const totalRate = allUnique.size ? allPassed.size / allUnique.size : 0;
+
+  el.innerHTML = renderRoleBars([
+    { role: 'Total', n: allUnique.size, p: allPassed.size, rate: totalRate, isTotal: true },
+    ...entries
+  ]);
+}
+
+// ── Pass rate by role — first attempt only ────────────────────────────────────
+function renderFirstAttemptPassRate(rows) {
+  const el = $('dash-role-first');
+  if (!el) return;
+  if (!rows.length) { el.innerHTML = '<p class="muted" style="font-size:13px;">No data yet.</p>'; return; }
+
+  // One row per email: the earliest submission = first attempt
+  const firstByEmail = {};
+  rows.forEach(r => {
+    if (!firstByEmail[r.email] || new Date(r.timestamp) < new Date(firstByEmail[r.email].timestamp)) {
+      firstByEmail[r.email] = r;
+    }
+  });
+  const firstAttempts = Object.values(firstByEmail);
+
+  const roleMap = {};
+  firstAttempts.forEach(r => {
+    const role = r.role || 'Unknown';
+    if (!roleMap[role]) roleMap[role] = { n: 0, p: 0 };
+    roleMap[role].n++;
+    if (r.status === 'Pass') roleMap[role].p++;
+  });
+
+  const entries = Object.entries(roleMap).map(([role, d]) => ({
+    role, n: d.n, p: d.p, rate: d.n ? d.p / d.n : 0
+  })).sort((a, b) => b.rate - a.rate);
+
+  const totalN = firstAttempts.length;
+  const totalP = firstAttempts.filter(r => r.status === 'Pass').length;
+
+  el.innerHTML = renderRoleBars([
+    { role: 'Total', n: totalN, p: totalP, rate: totalN ? totalP / totalN : 0, isTotal: true },
+    ...entries
+  ]);
+}
+
+// ── Shared role bar renderer ──────────────────────────────────────────────────
+function renderRoleBars(entries) {
+  return entries.map(e => {
+    const pct   = e.n ? Math.round(e.rate * 100) : 0;
+    const color = e.isTotal ? 'var(--yellow)'
+                : pct >= 70 ? '#14B8A6'
+                : pct >= 40 ? '#FFC72C'
+                : '#F87171';
+    const label = e.n ? `${pct}% (${e.p} / ${e.n})` : 'No data';
+    return `<div class="role-bar-row${e.isTotal ? ' role-bar-total' : ''}">
+      <span class="role-bar-label">${escHtml(e.role)}</span>
+      <div class="role-bar-track">
+        <div class="role-bar-fill" style="width:${pct}%;background:${color};"></div>
+      </div>
+      <span class="role-bar-val" style="color:${color};">${label}</span>
+    </div>`;
+  }).join('');
+}
+
+// ── Attempts required to pass (vertical bar canvas) ───────────────────────────
+function renderAttemptsToPAss(rows) {
+  const canvas = $('chart-attempts');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  // Per email: sort all submissions by timestamp, find first passing row
+  const byEmail = {};
+  rows.forEach(r => {
+    if (!byEmail[r.email]) byEmail[r.email] = [];
+    byEmail[r.email].push(r);
+  });
+
+  const passers = [];
+  let notYetPassed = 0;
+  Object.values(byEmail).forEach(attempts => {
+    attempts.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    const firstPass = attempts.findIndex(r => r.status === 'Pass');
+    if (firstPass === -1) {
+      notYetPassed++;
+    } else {
+      passers.push(firstPass + 1); // 1-based attempt number
+    }
+  });
+
+  const buckets = [
+    { label: '1',  min: 1, max: 1 },
+    { label: '2',  min: 2, max: 2 },
+    { label: '3',  min: 3, max: 3 },
+    { label: '4+', min: 4, max: Infinity }
+  ];
+  buckets.forEach(b => {
+    b.count = passers.filter(n => n >= b.min && n <= b.max).length;
+  });
+
+  const note = $('chart-attempts-note');
+  if (note) {
+    note.textContent = notYetPassed > 0
+      ? `${notYetPassed} ${notYetPassed === 1 ? 'person has' : 'people have'} attempted without passing yet.`
+      : '';
+  }
+
+  const total = passers.length || 1;
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const padL = 24, padR = 8, padT = 24, padB = 32;
+  const chartW = W - padL - padR;
+  const chartH = H - padT - padB;
+  const maxCount = Math.max(...buckets.map(b => b.count), 1);
+  const barW = chartW / buckets.length;
+  const gap  = 10;
+
+  buckets.forEach((b, i) => {
+    const pct = Math.round((b.count / total) * 100);
+    const bh  = (b.count / maxCount) * chartH;
+    const x   = padL + i * barW + gap / 2;
+    const y   = padT + chartH - bh;
+
+    ctx.fillStyle = '#14B8A6';
+    ctx.beginPath();
+    ctx.roundRect(x, y, barW - gap, Math.max(bh, 1), [4, 4, 0, 0]);
+    ctx.fill();
+
+    if (b.count > 0) {
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 11px Calibri, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${pct}% (${b.count})`, x + (barW - gap) / 2, y - 4);
+    }
+
+    ctx.fillStyle = '#94A3B8';
+    ctx.font = '11px Calibri, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(b.label, x + (barW - gap) / 2, H - padB + 14);
+  });
+
+  ctx.fillStyle = '#94A3B8';
+  ctx.font = '10px Calibri, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Attempts to pass', W / 2, H - 2);
+}
+
+// ── Question drill-down modal ─────────────────────────────────────────────────
+function showDrillDown(qNum) {
+  const q = QUESTIONS.find(x => x.id === qNum);
+  if (!q) return;
+
+  const correctLetter = ANSWER_KEY['Q' + qNum];
+  const rows = dashFiltered;
+  const total = rows.length || 1;
+
+  // Count wrong-answer option selections
+  const wrongPicks = { A: 0, B: 0, C: 0, D: 0 };
+  let totalWrong = 0;
+  let failCount  = 0;
+  rows.forEach(r => {
+    if (!r.answers) return;
+    const given = (r.answers['Q' + qNum] || '').toUpperCase();
+    if (!given) return;
+    if (given !== correctLetter) {
+      wrongPicks[given] = (wrongPicks[given] || 0) + 1;
+      totalWrong++;
+      failCount++;
+    }
+  });
+
+  const failPct = Math.round((failCount / total) * 100);
+
+  const optionsHTML = ['A', 'B', 'C', 'D'].map(letter => {
+    const isCorrect = letter === correctLetter;
+    const picked    = wrongPicks[letter] || 0;
+    const wrongPct  = totalWrong ? Math.round((picked / totalWrong) * 100) : 0;
+    const cls = isCorrect ? 'correct' : (picked > 0 ? 'wrong-picked' : 'not-picked');
+    const statHTML = isCorrect
+      ? `<div class="drill-option-stat">✓ Correct answer</div>`
+      : (picked > 0 ? `<div class="drill-option-stat">${picked} selection${picked !== 1 ? 's' : ''} — ${wrongPct}% of wrong answers</div>` : '');
+    return `<div class="drill-option ${cls}">
+      <span class="drill-option-letter">${letter}</span>
+      <div class="drill-option-text">
+        <div>${escHtml(q.options[letter])}</div>
+        ${statHTML}
+      </div>
+    </div>`;
+  }).join('');
+
+  const noDataNote = !rows.some(r => r.answers)
+    ? '<p class="muted" style="font-size:12px;margin-bottom:12px;">Per-option breakdown not available for submissions before this feature was enabled.</p>'
+    : '';
+
+  $('drill-content').innerHTML = `
+    <div class="drill-q-num">Question ${qNum} · ${escHtml(q.section)}</div>
+    <div class="drill-q-text">${escHtml(q.text)}</div>
+    <div class="drill-fail-rate">${failPct}% failure rate (${failCount} of ${total} submission${total !== 1 ? 's' : ''})</div>
+    ${noDataNote}
+    ${optionsHTML}
+    <div class="drill-slide-ref">📖 Slide${q.slideRefs.includes(',') ? 's' : ''} ${escHtml(q.slideRefs)}</div>
+  `;
+
+  $('drill-modal').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeDrillDown(event) {
+  // Close if: X button clicked (no event), or overlay background clicked (not the panel)
+  if (event && event.target !== $('drill-modal')) return;
+  $('drill-modal').classList.add('hidden');
+  document.body.style.overflow = '';
 }

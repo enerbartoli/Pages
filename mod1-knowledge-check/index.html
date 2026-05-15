@@ -240,6 +240,22 @@
         <button id="btn-dash-logout" class="btn-link" style="font-size:12px;color:var(--gray-muted);">Lock 🔒</button>
       </div>
 
+      <!-- Module selector + refresh -->
+      <div class="card dash-top-bar">
+        <div class="dash-top-left">
+          <label for="dash-module-select" class="dash-top-label">Module</label>
+          <select id="dash-module-select" class="dash-select">
+            <option value="">All modules</option>
+            <option value="mod1">MOD 1 — Baseline &amp; Workflow</option>
+            <option value="mod2">MOD 2 — Enrichment Practice</option>
+          </select>
+        </div>
+        <div class="dash-top-right">
+          <button id="btn-dash-refresh" class="btn btn-ghost" style="padding:9px 16px;font-size:13px;">↻ Refresh data</button>
+          <span id="dash-last-updated" class="muted" style="font-size:12px;"></span>
+        </div>
+      </div>
+
       <!-- Date filter -->
       <div class="card" style="padding:20px 24px;">
         <p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--gray-muted);margin-bottom:14px;">Filter by date range</p>
@@ -286,6 +302,25 @@
         <div id="dash-heatmap"></div>
       </div>
 
+      <!-- Pass rate by role — any attempt -->
+      <div class="card" style="padding:20px 24px;">
+        <p class="dash-chart-title">Pass rate by role — any attempt</p>
+        <div id="dash-role-pass"></div>
+      </div>
+
+      <!-- Pass rate by role — first attempt only -->
+      <div class="card" style="padding:20px 24px;">
+        <p class="dash-chart-title">Pass rate by role — first attempt only</p>
+        <div id="dash-role-first"></div>
+      </div>
+
+      <!-- Attempts required to pass -->
+      <div class="card" style="padding:20px 24px;">
+        <p class="dash-chart-title">Attempts required to pass</p>
+        <canvas id="chart-attempts" width="520" height="190" style="display:block;margin:0 auto;max-width:100%;"></canvas>
+        <p id="chart-attempts-note" class="muted" style="font-size:11px;margin-top:8px;text-align:center;"></p>
+      </div>
+
       <!-- Email lookup -->
       <div class="card" style="padding:20px 24px;">
         <p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--gray-muted);margin-bottom:14px;">Look up participant</p>
@@ -310,6 +345,15 @@
       </div>
 
     </div>
+
+    <!-- Question drill-down modal (hidden by default) -->
+    <div id="drill-modal" class="drill-overlay hidden" onclick="closeDrillDown(event)">
+      <div class="drill-panel">
+        <button class="drill-close" onclick="closeDrillDown()" aria-label="Close">&times;</button>
+        <div id="drill-content"></div>
+      </div>
+    </div>
+
   </section>
 
 </div><!-- /#app -->
