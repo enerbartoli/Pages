@@ -47,6 +47,62 @@ const QUESTION_TEXT = {
   Q16: 'In the 2027 target operating model, how does the Brand Captain\'s role differ from the 2026 pilot?'
 };
 
+// ══════════════════════════════════════════════════════════════════════════════
+// MOD 2 — Enrichment Practice (additive — all MOD 1 constants above unchanged)
+// ══════════════════════════════════════════════════════════════════════════════
+
+const ANSWER_KEY_MOD2 = {
+  Q1:'A', Q2:'B', Q3:'C', Q4:'C', Q5:'D',
+  Q6:'B', Q7:'B', Q8:'C', Q9:'A', Q10:'A',
+  Q11:'D', Q12:'C', Q13:'A', Q14:'D', Q15:'B'
+};
+const TOTAL_QUESTIONS_MOD2 = 15;
+const PASS_THRESHOLD_MOD2  = 12;
+const QUIZ_URL_MOD2        = 'https://enerbartoli.github.io/mod1-knowledge-check/mod2.html';
+
+const SLIDE_REFS_MOD2 = {
+  Q1:'4, 5, 6', Q2:'4',       Q3:'7, 8',        Q4:'9, 10',
+  Q5:'11, 12, 13, 14',        Q6:'24',           Q7:'32',
+  Q8:'29',      Q9:'26',      Q10:'37',          Q11:'31',
+  Q12:'39',     Q13:'44',     Q14:'51',          Q15:'54'
+};
+
+const QUESTION_TEXT_MOD2 = {
+  Q1:  'A carry-forward item shows two consecutive years of stable seasonal demand, with no confirmed commercial event, no supply issue, and no distribution change in scope. The Daybreak baseline and the Resultant Forecast track the same seasonal shape at L3. What is the correct action?',
+  Q2:  'You are reviewing a scenario where the total demand at L3 looks correct against history, but the customer-level split at L2 routes most of the volume to inactive partners. Where does the issue live?',
+  Q3:  'An item shipped near zero for several months in 2025 because of a confirmed stockout. The Daybreak baseline now projects 2026 demand at a fraction of the pre-stockout run-rate, because the model learned the suppression as true decline. What is the correct action?',
+  Q4:  'A Warm Start NPI has 16 weeks of actuals that came in below the 2026 Resultant plan. Daybreak interprets this as a structural correction and slashes the 2027 baseline by more than half. The item still has under 12 months of history. What is the correct action?',
+  Q5:  'A carry-forward item is exclusive to a single retailer — that retailer absorbs ~100% of actuals across the past two years. The Current Resultant disaggregation routes a large share to other customers with no recent history, while the Moving Average method routes ~100% to the exclusive partner. What is the correct action?',
+  Q6:  'Which statement correctly describes the difference between a Set and a Base Trend enrichment?',
+  Q7:  'A customer pulls confirmed annual demand into a specific order window, with offsetting reductions in the months from which demand is being moved. The full-year total does not change. Which enrichment approach is correct?',
+  Q8:  'A customer is adding new stores to its distribution. The initial pipeline fill ships in one window (F1), and ongoing replenishment continues in those new stores afterwards. Which enrichment approach is correct?',
+  Q9:  'An established carry-forward item has a future confirmed retail promotion that is not already reflected in baseline behavior. The promo will generate incremental units in a specific ship window. Which enrichment is correct?',
+  Q10: 'A customer has provided a specific pre-order quantity and timing for a new item with no comparable history. What is the correct way to capture it?',
+  Q11: 'An NPI\'s stat baseline already includes the channel-fill volume in its launch shape, but the team needs the fill visible as a discrete set for allocation traceability. What is the correct approach in F1?',
+  Q12: 'Last year a deal spike inflated demand for a specific period, and the promotion is not repeating this year. The baseline is now projecting the spike forward as if it were normal seasonality. What is the correct action?',
+  Q13: 'A specific customer has discontinued an item that remains active at other customers. The baseline is still allocating volume to the dropped customer based on past proportions. What is the correct action?',
+  Q14: 'A customer is changing its buying route from Domestic to Direct Import. Total demand is unchanged — only the channel is moving. The volume in scope currently sits in the baseline. What is the correct approach?',
+  Q15: 'At the BU/brand level the L3 total is accurate against history, but the L2 customer split allocates too much volume to a customer with declining actuals. What is the correct path?'
+};
+
+const RATIONALES_MOD2 = {
+  Q1:  'Two consecutive years of clean history that converge with the baseline mean the model is fit-for-purpose at L3 — adding an enrichment without a missing event would introduce noise without adding value.',
+  Q2:  'When L3 totals are right but the customer mix is wrong, the issue lives in the L2 disaggregation logic — adding an enrichment at L3 would inflate the total instead of fixing the split.',
+  Q3:  'Stockout-suppressed history is contaminated input, not a true demand signal, so cleansing the affected months at source rebuilds the baseline durably and avoids re-doing the same correction every cycle.',
+  Q4:  'Sixteen weeks of actuals on an NPI with under twelve months of history is not enough signal to justify a structural reset of the next-year baseline, so the team recalculates demand together to balance the model\'s signal against commercial knowledge.',
+  Q5:  'For an exclusive item, Moving Average over recent actuals captures the real customer mix while Current Resultant fragments to inactive partners — switching the disaggregation method is the direct fix, no L3 enrichment needed.',
+  Q6:  'Sets are for one-time events because they cleanse out of history after they ship; Base Trend is for structural changes that should repeat because it permanently enters the baseline.',
+  Q7:  'A ladder is a timing move, not incremental demand — sets are the right tool because they cleanse out of history, while base trend would permanently distort next year\'s baseline with the same timing shift.',
+  Q8:  'The new-store fill is one-time (Set, cleanses out) and the higher run-rate is structural (Base Trend, enters baseline) — using a single enrichment type for both would either contaminate next year\'s baseline or leave the ongoing lift uncaptured.',
+  Q9:  'A confirmed, incremental, time-bounded promo is exactly what the promo enrichment type was built for — base trend would inflate next year\'s baseline, and a set would over-capture by extending beyond the promo window.',
+  Q10: 'Pre-orders are entered at confirmed quantity only — adding speculative volume beyond the commitment undermines the rationale for using the enrichment type in the first place.',
+  Q11: 'The channel-fill is already in the NPI baseline, so a single positive set would double-count — two offsetting sets keep the total unchanged while making the fill visible for allocation, and both cleanse out after launch.',
+  Q12: 'A non-repeating historical spike that the model is echoing forward needs to be removed structurally — negative base trend corrects it now, and flagging the period for historical cleansing prevents the same correction from being needed next cycle.',
+  Q13: 'A customer exit is a structural change — base trend removes the phantom volume while the forecasting-range update prevents the model from continuing to route demand to a customer that no longer takes the item.',
+  Q14: 'Channel shift is a routing change, not new demand — the channel-shift functionality moves baseline volume cleanly between channels, while creating offsetting enrichments would distort total demand.',
+  Q15: 'When L3 is right, no enrichment is needed — enriching at L1 to fix an L2 split would inflate L3 total demand, so the correct path is a disaggregation adjustment routed through DP/Genpact.'
+};
+
 // ── CORS helper ───────────────────────────────────────────────────────────────
 function buildResponse(data, statusCode) {
   statusCode = statusCode || 200;
@@ -102,6 +158,10 @@ function doPost(e) {
     if (QUIZ_CLOSED) {
       return buildResponse({ error: 'This quiz is no longer accepting submissions.' }, 403);
     }
+
+    // 3. Route by module (minimum change — MOD 1 flow below is unchanged)
+    var moduleId = String(payload.module || 'mod1').toLowerCase();
+    if (moduleId === 'mod2') { return handleMod2Post(payload); }
 
     // 3. Validate required fields
     var validationError = validatePayload(payload);
@@ -403,4 +463,249 @@ function sendNotificationEmail(payload, scoreResult, sheetUrl) {
     subject: subject,
     body:    body
   });
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MOD 2 HANDLERS (additive — all MOD 1 functions above are unchanged)
+// ══════════════════════════════════════════════════════════════════════════════
+
+function handleMod2Post(payload) {
+  try {
+    var validationError = validatePayload_mod2(payload);
+    if (validationError) return buildResponse({ error: validationError }, 400);
+
+    var scoreResult = scoreSubmission_mod2(payload.answers);
+    var sheetUrl    = appendToSheet_mod2(payload, scoreResult);
+    sendEmails_mod2(payload, scoreResult, sheetUrl);
+
+    return buildResponse({
+      score:            scoreResult.score,
+      total:            TOTAL_QUESTIONS_MOD2,
+      percent:          scoreResult.percent,
+      pass:             scoreResult.pass,
+      failed_questions: scoreResult.failedQNums
+    });
+  } catch (err) {
+    Logger.log('handleMod2Post error: ' + err.message + '\n' + err.stack);
+    return buildResponse({ error: 'Server error. Please try again.' }, 500);
+  }
+}
+
+function validatePayload_mod2(p) {
+  if (!p.name || String(p.name).trim().length < 2) return 'Name is required.';
+  var emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!p.email || !emailRe.test(String(p.email).trim())) return 'Valid email is required.';
+  if (!p.role) return 'Role is required.';
+  if (!p.answers || typeof p.answers !== 'object') return 'Answers are required.';
+  for (var i = 1; i <= TOTAL_QUESTIONS_MOD2; i++) {
+    var key = 'Q' + i;
+    var val = p.answers[key];
+    if (!val || !['A','B','C','D'].includes(String(val).toUpperCase())) {
+      return 'Answer for ' + key + ' is missing or invalid.';
+    }
+  }
+  return null;
+}
+
+function scoreSubmission_mod2(answers) {
+  var score = 0;
+  var results = {};
+  var failedQNums = [];
+  for (var i = 1; i <= TOTAL_QUESTIONS_MOD2; i++) {
+    var key     = 'Q' + i;
+    var given   = String(answers[key] || '').toUpperCase();
+    var correct = ANSWER_KEY_MOD2[key];
+    var isCorrect = given === correct;
+    results[key] = { given: given, correct: isCorrect };
+    if (isCorrect) { score++; } else { failedQNums.push(i); }
+  }
+  var percent = Math.round((score / TOTAL_QUESTIONS_MOD2) * 10000) / 100;
+  return { score: score, percent: percent, pass: score >= PASS_THRESHOLD_MOD2, results: results, failedQNums: failedQNums };
+}
+
+function appendToSheet_mod2(payload, scoreResult) {
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEET_NAME);
+  if (!sheet) { sheet = ss.insertSheet(SHEET_NAME); writeHeaders(sheet); }
+  if (sheet.getLastRow() === 0) writeHeaders(sheet);
+
+  var moduleId      = 'mod2';
+  var attemptNumber = computeAttemptNumber(String(payload.email).trim().toLowerCase(), moduleId, sheet);
+
+  var now = new Date();
+  var row = [
+    now, payload.name.trim(), payload.email.trim().toLowerCase(), payload.role,
+    payload.roleOther || '', scoreResult.score, scoreResult.percent,
+    scoreResult.pass ? 'Pass' : 'Fail'
+  ];
+
+  // Q1–Q15 answer + correct pairs
+  for (var i = 1; i <= TOTAL_QUESTIONS_MOD2; i++) {
+    var key = 'Q' + i;
+    var r   = scoreResult.results[key];
+    row.push(r.given);
+    row.push(r.correct);
+  }
+  // Q16 placeholder blanks — preserves column alignment with MOD 1 sheet layout
+  row.push('');
+  row.push('');
+
+  row.push(scoreResult.failedQNums.join(', '));
+  row.push(true);
+  row.push((payload.userAgent || '').slice(0, 200));
+  row.push(moduleId);
+  row.push(attemptNumber);
+
+  sheet.appendRow(row);
+  return ss.getUrl();
+}
+
+function sendEmails_mod2(payload, scoreResult, sheetUrl) {
+  var name  = payload.name.trim();
+  var email = payload.email.trim().toLowerCase();
+  try {
+    if (scoreResult.pass) {
+      sendPassEmail_mod2(email, name, scoreResult.score, TOTAL_QUESTIONS_MOD2, scoreResult.percent);
+    } else {
+      sendFailEmail_mod2(email, name, scoreResult.score, TOTAL_QUESTIONS_MOD2, scoreResult.percent, scoreResult.failedQNums);
+    }
+    sendNotificationEmail_mod2(payload, scoreResult, sheetUrl);
+    return true;
+  } catch (err) {
+    Logger.log('MOD 2 email error: ' + err.message);
+    return false;
+  }
+}
+
+function emailShell_mod2(contentHtml) {
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#f0f4f8;font-family:Arial,sans-serif;">' +
+    '<table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f4f8;padding:32px 0;">' +
+    '<tr><td align="center">' +
+    '<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">' +
+    '<tr><td style="background:#0d1b2e;padding:28px 40px;text-align:center;">' +
+    '<p style="margin:0;color:#00c9a7;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">Forecast Enrichment Programme · UK Pilot</p>' +
+    '<p style="margin:8px 0 0;color:#ffffff;font-size:20px;font-weight:700;">MOD 2 Knowledge Check</p>' +
+    '</td></tr>' +
+    '<tr><td style="padding:40px;">' + contentHtml + '</td></tr>' +
+    '<tr><td style="background:#f8f9fa;padding:20px 40px;border-top:1px solid #e9ecef;text-align:center;">' +
+    '<p style="margin:0;color:#6c757d;font-size:12px;">Rene Bartoli · Demand Planning · Forecast Enrichment Program</p>' +
+    '</td></tr>' +
+    '</table></td></tr></table></body></html>';
+}
+
+function sendPassEmail_mod2(toEmail, name, score, total, pct) {
+  var subject = '✓ MOD 2 Knowledge Check — Passed';
+  var content =
+    '<div style="text-align:center;margin-bottom:32px;">' +
+    '<div style="display:inline-block;background:#d4edda;border-radius:50%;width:72px;height:72px;line-height:72px;font-size:36px;">✓</div>' +
+    '<h2 style="margin:16px 0 4px;color:#0d1b2e;font-size:24px;">Well done, ' + name + '!</h2>' +
+    '<p style="margin:0;color:#6c757d;font-size:15px;">You\'ve passed the MOD 2 knowledge check</p>' +
+    '</div>' +
+    '<table width="100%" cellpadding="0" cellspacing="0" style="background:#f8f9fa;border-radius:8px;margin-bottom:28px;">' +
+    '<tr>' +
+    '<td style="padding:20px;text-align:center;border-right:1px solid #e9ecef;">' +
+    '<p style="margin:0;font-size:32px;font-weight:700;color:#00c9a7;">' + score + '/' + total + '</p>' +
+    '<p style="margin:4px 0 0;font-size:12px;color:#6c757d;text-transform:uppercase;letter-spacing:1px;">Score</p>' +
+    '</td>' +
+    '<td style="padding:20px;text-align:center;border-right:1px solid #e9ecef;">' +
+    '<p style="margin:0;font-size:32px;font-weight:700;color:#00c9a7;">' + Math.round(pct) + '%</p>' +
+    '<p style="margin:4px 0 0;font-size:12px;color:#6c757d;text-transform:uppercase;letter-spacing:1px;">Accuracy</p>' +
+    '</td>' +
+    '<td style="padding:20px;text-align:center;">' +
+    '<p style="margin:0;font-size:32px;font-weight:700;color:#00c9a7;">PASS</p>' +
+    '<p style="margin:4px 0 0;font-size:12px;color:#6c757d;text-transform:uppercase;letter-spacing:1px;">Status</p>' +
+    '</td>' +
+    '</tr></table>' +
+    '<p style="color:#495057;font-size:15px;line-height:1.6;">You\'ve met the <strong>80% threshold</strong> for MOD 2 — Enrichment Practice.</p>' +
+    '<div style="background:#e8f8f5;border-left:4px solid #00c9a7;border-radius:4px;padding:16px 20px;margin:24px 0;">' +
+    '<p style="margin:0;color:#0d1b2e;font-size:14px;font-weight:700;">You\'re ready</p>' +
+    '<p style="margin:6px 0 0;color:#495057;font-size:14px;">You have now completed both modules. You\'re ready for hands-on enrichment practice in HERO.</p>' +
+    '</div>' +
+    '<p style="color:#6c757d;font-size:14px;line-height:1.6;">If you have questions about MOD 2 concepts, revisit the facilitator deck in the project SharePoint or reach out to the Demand Planning team.</p>';
+  MailApp.sendEmail({ to: toEmail, subject: subject, htmlBody: emailShell_mod2(content) });
+}
+
+function sendFailEmail_mod2(toEmail, name, score, total, pct, failedQNums) {
+  var subject = 'MOD 2 Knowledge Check — Please review and retry';
+
+  var missedRows = failedQNums.map(function(num) {
+    var key        = 'Q' + num;
+    var qText      = QUESTION_TEXT_MOD2[key] || '';
+    var refs       = SLIDE_REFS_MOD2[key] || '';
+    var rationale  = RATIONALES_MOD2[key] || '';
+    var slideLabel = refs.indexOf(',') > -1 ? 'Slides' : 'Slide';
+    return '<tr style="border-bottom:1px solid #e9ecef;">' +
+      '<td style="padding:12px 8px;color:#0d1b2e;font-weight:700;font-size:13px;white-space:nowrap;">Q' + num + '</td>' +
+      '<td style="padding:12px 8px;font-size:13px;line-height:1.5;">' +
+        '<div style="color:#495057;">' + qText + '</div>' +
+        '<div style="color:#6c757d;font-style:italic;margin-top:6px;font-size:12px;">' + rationale + '</div>' +
+      '</td>' +
+      '<td style="padding:12px 8px;color:#00c9a7;font-size:13px;white-space:nowrap;">' + slideLabel + ' ' + refs + '</td>' +
+      '</tr>';
+  }).join('');
+
+  var content =
+    '<div style="text-align:center;margin-bottom:32px;">' +
+    '<div style="display:inline-block;background:#fff3cd;border-radius:50%;width:72px;height:72px;line-height:72px;font-size:36px;">📋</div>' +
+    '<h2 style="margin:16px 0 4px;color:#0d1b2e;font-size:24px;">Hi ' + name + '</h2>' +
+    '<p style="margin:0;color:#6c757d;font-size:15px;">A little more review needed</p>' +
+    '</div>' +
+    '<table width="100%" cellpadding="0" cellspacing="0" style="background:#f8f9fa;border-radius:8px;margin-bottom:28px;">' +
+    '<tr>' +
+    '<td style="padding:20px;text-align:center;border-right:1px solid #e9ecef;">' +
+    '<p style="margin:0;font-size:32px;font-weight:700;color:#ffd60a;">' + score + '/' + total + '</p>' +
+    '<p style="margin:4px 0 0;font-size:12px;color:#6c757d;text-transform:uppercase;letter-spacing:1px;">Score</p>' +
+    '</td>' +
+    '<td style="padding:20px;text-align:center;border-right:1px solid #e9ecef;">' +
+    '<p style="margin:0;font-size:32px;font-weight:700;color:#ffd60a;">' + Math.round(pct) + '%</p>' +
+    '<p style="margin:4px 0 0;font-size:12px;color:#6c757d;text-transform:uppercase;letter-spacing:1px;">Accuracy</p>' +
+    '</td>' +
+    '<td style="padding:20px;text-align:center;">' +
+    '<p style="margin:0;font-size:32px;font-weight:700;color:#dc3545;">RETRY</p>' +
+    '<p style="margin:4px 0 0;font-size:12px;color:#6c757d;text-transform:uppercase;letter-spacing:1px;">Status</p>' +
+    '</td>' +
+    '</tr></table>' +
+    '<p style="color:#495057;font-size:15px;line-height:1.6;">No worries — the goal is for everyone to fully land MOD 2 before working in HERO.</p>' +
+    '<h3 style="color:#0d1b2e;font-size:16px;font-weight:700;margin:24px 0 12px;">Questions to Review to Better Your Understanding</h3>' +
+    '<table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e9ecef;border-radius:8px;overflow:hidden;margin:20px 0;">' +
+    '<tr style="background:#0d1b2e;">' +
+    '<th style="padding:10px 8px;color:#00c9a7;font-size:11px;text-transform:uppercase;letter-spacing:1px;text-align:left;">#</th>' +
+    '<th style="padding:10px 8px;color:#00c9a7;font-size:11px;text-transform:uppercase;letter-spacing:1px;text-align:left;">Question &amp; Rationale</th>' +
+    '<th style="padding:10px 8px;color:#00c9a7;font-size:11px;text-transform:uppercase;letter-spacing:1px;text-align:left;">Review</th>' +
+    '</tr>' +
+    missedRows +
+    '</table>' +
+    '<div style="background:#fff3cd;border-left:4px solid #ffd60a;border-radius:4px;padding:16px 20px;margin:24px 0;">' +
+    '<p style="margin:0;color:#0d1b2e;font-size:14px;font-weight:700;">Note</p>' +
+    '<p style="margin:6px 0 0;color:#495057;font-size:14px;">I\'m deliberately not sharing the correct answers here — go back to the material and find them yourself. That\'s where the learning sticks.</p>' +
+    '</div>' +
+    '<div style="text-align:center;margin-top:28px;">' +
+    '<a href="' + QUIZ_URL_MOD2 + '" style="display:inline-block;background:#ffd60a;color:#0d1b2e;font-weight:700;font-size:15px;padding:14px 32px;border-radius:8px;text-decoration:none;">Retake the Quiz →</a>' +
+    '</div>';
+
+  MailApp.sendEmail({ to: toEmail, subject: subject, htmlBody: emailShell_mod2(content) });
+}
+
+function sendNotificationEmail_mod2(payload, scoreResult, sheetUrl) {
+  var name        = payload.name.trim();
+  var email       = payload.email.trim().toLowerCase();
+  var role        = payload.role + (payload.roleOther ? ' (' + payload.roleOther + ')' : '');
+  var score       = scoreResult.score;
+  var total       = TOTAL_QUESTIONS_MOD2;
+  var pct         = scoreResult.percent;
+  var status      = scoreResult.pass ? 'PASS' : 'FAIL';
+  var failedCount = scoreResult.failedQNums.length;
+  var failedList  = failedCount > 0
+    ? '  (' + scoreResult.failedQNums.map(function(n) { return 'Q' + n; }).join(', ') + ')'
+    : '';
+
+  var subject = '[MOD 2 Quiz] ' + name + ' — ' + score + '/' + total + ' — ' + status;
+  var body =
+    name + ' (' + email + ', ' + role + ') just submitted the MOD 2 Knowledge Check.\n\n' +
+    'Score: ' + score + ' / ' + total + ' (' + pct + '%)\n' +
+    'Status: ' + status + '\n' +
+    'Questions failed: ' + failedCount + ' of ' + total + failedList + '\n\n' +
+    'Full row written to the Sheet:\n' + sheetUrl;
+
+  MailApp.sendEmail({ to: RENE_EMAIL, cc: RENE_COPY_EMAIL, subject: subject, body: body });
 }
