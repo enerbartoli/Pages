@@ -458,7 +458,15 @@ async function submitQuiz() {
     body:    JSON.stringify(payload)
   }).catch(() => {});
 
-  goResults(result);
+  try {
+    goResults(result);
+  } catch (err) {
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Submit Answers';
+    const errEl = $('submit-error');
+    if (errEl) { errEl.textContent = 'Error showing results: ' + err.message; show(errEl); }
+    console.error('goResults error:', err);
+  }
 }
 
 // ── Results ────────────────────────────────────────────────────────────────────
