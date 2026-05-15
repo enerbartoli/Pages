@@ -65,12 +65,17 @@
         topics to review before retaking. You can retake the quiz as many times as you need.
       </p>
 
-      <button id="btn-start" class="btn btn-primary btn-full btn-lg">Start →</button>
-
-      <div style="text-align:center;margin-top:20px;padding-top:20px;border-top:1px solid var(--navy-light);">
-        <p class="muted" style="font-size:12px;margin-bottom:8px;">Also available</p>
-        <a href="mod2.html" class="btn btn-ghost" style="font-size:14px;padding:10px 24px;text-decoration:none;display:inline-block;">MOD 2 — Enrichment Practice →</a>
+      <div style="margin-bottom:16px;">
+        <label for="module-select" style="display:block;font-size:13px;color:var(--gray-muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Select module</label>
+        <select id="module-select" style="width:100%;background:var(--navy-dark);border:1.5px solid var(--navy-light);border-radius:8px;color:var(--white);font-family:inherit;font-size:15px;padding:12px 14px;">
+          <option value="">— Choose a module —</option>
+          <option value="mod1" selected>MOD 1 — Baseline &amp; Workflow</option>
+          <option value="mod2">MOD 2 — Enrichment Practice</option>
+        </select>
+        <span id="module-select-error" style="display:none;color:var(--coral);font-size:13px;margin-top:6px;">Please select a module to continue.</span>
       </div>
+
+      <button id="btn-start" class="btn btn-primary btn-full btn-lg">Start →</button>
 
       <p style="text-align:center;margin-top:16px;">
         <button id="btn-open-dashboard-welcome" class="btn-link" style="font-size:11px;color:var(--gray-muted);opacity:0.4;">📊 Results dashboard</button>

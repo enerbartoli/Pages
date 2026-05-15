@@ -10,7 +10,7 @@ const LS_KEY            = 'mod2_quiz_state';
 const ANSWER_KEY = {
   Q1:'A', Q2:'B', Q3:'C', Q4:'C', Q5:'D',
   Q6:'B', Q7:'B', Q8:'C', Q9:'A', Q10:'A',
-  Q11:'D', Q12:'C', Q13:'A', Q14:'D', Q15:'B'
+  Q11:'D', Q12:'C', Q13:'C', Q14:'D', Q15:'B'
 };
 
 function scoreAnswers(answers) {
@@ -100,7 +100,7 @@ const QUESTIONS = [
     text: 'Which statement correctly describes the difference between a Set and a Base Trend enrichment?',
     options: {
       A: 'A Set is positive only; a Base Trend can be positive or negative.',
-      B: 'A Set cleanses out of history after the period passes; a Base Trend enters the baseline permanently.',
+      B: 'A set cleanses out of the historical shipments after the period passes; base trend adjustment are never used to clean the history therefore its impact remains.',
       C: 'A Set is owned by Sales; a Base Trend is owned by Demand Planning.',
       D: 'A Set applies to NPI items only; a Base Trend applies to carry-forward items only.'
     },
@@ -167,7 +167,7 @@ const QUESTIONS = [
       A: 'Add a positive set for the channel-fill on top of the existing baseline.',
       B: 'Apply a positive base trend in F1 to make the channel-fill visible.',
       C: 'Submit a disaggregation request to split the channel-fill into a separate baseline component.',
-      D: 'Two offsetting sets in F1 — negative to remove the embedded fill, positive of equal magnitude to restore it visibly.'
+      D: 'To reflect a negative base trend enrichment in correspondent period to offset the channel-fill already inside the baseline, plus a positive set enrichment of equal magnitude in the same month.'
     },
     slideRefs: '31',
     rationale: 'The channel-fill is already in the NPI baseline, so a single positive set would double-count — two offsetting sets keep the total unchanged while making the fill visible for allocation, and both cleanse out after launch.',
@@ -188,16 +188,16 @@ const QUESTIONS = [
   },
   {
     id: 13,
-    text: 'A specific customer has discontinued an item that remains active at other customers. The baseline is still allocating volume to the dropped customer based on past proportions. What is the correct action?',
+    text: 'A Warm Start NPI with under 12 months of history has 16 weeks of actuals below the 2026 Resultant plan, and Daybreak has slashed the 2027 baseline by more than half. After reviewing together, you and the Brand Captain agree Daybreak\'s drop is too aggressive and the SKU can still rebound. What is the correct action?',
     options: {
-      A: 'Apply a negative base trend and update the forecasting range to stop allocating to that customer.',
-      B: 'Wait — the model will reduce the customer\'s share once actuals show zero.',
-      C: 'Submit a disaggregation request to remove the customer from the L2 split.',
-      D: 'Apply a one-time negative set for the year, then let the baseline rebuild.'
+      A: 'Accept Daybreak\'s revised baseline — 16 weeks of actuals is sufficient to confirm the structural decline.',
+      B: 'Apply negative sets in each under-performing month to align the forecast to Daybreak\'s corrected view.',
+      C: 'Recalculate overall demand and apply an L2.5 Base Trend adjustment via the Brand Captain\'s reconciliation template.',
+      D: 'Submit a disaggregation request to DP/Genpact to redistribute the volume across a wider customer base.'
     },
-    slideRefs: '44',
-    rationale: 'A customer exit is a structural change — base trend removes the phantom volume while the forecasting-range update prevents the model from continuing to route demand to a customer that no longer takes the item.',
-    section: 'Base Trend Corrections'
+    slideRefs: '9, 10',
+    rationale: 'When the team has assessed that Daybreak\'s reduction is too aggressive — not enough history for a structural reset — the correct path is to recalculate demand with commercial knowledge and lock the agreed view via an L2.5 Base Trend adjustment using the Brand Captain\'s template.',
+    section: 'Baseline Training'
   },
   {
     id: 14,
@@ -298,7 +298,18 @@ function goResults(results) {
 
 // ── Welcome ────────────────────────────────────────────────────────────────────
 function initWelcome() {
-  $('btn-start').addEventListener('click', () => goIdentity());
+  $('btn-start').addEventListener('click', () => {
+    const sel = $('module-select');
+    if (!sel || !sel.value) {
+      const err = $('module-select-error');
+      if (err) err.style.display = 'block';
+      return;
+    }
+    if (sel.value === 'mod1') { window.location.href = 'index.html'; return; }
+    const err = $('module-select-error');
+    if (err) err.style.display = 'none';
+    goIdentity();
+  });
 }
 
 // ── Identity ───────────────────────────────────────────────────────────────────

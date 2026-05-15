@@ -323,7 +323,18 @@ function goResults(results) {
 
 // ── Welcome screen ────────────────────────────────────────────────────────────
 function initWelcome() {
-  $('btn-start').addEventListener('click', () => goIdentity());
+  $('btn-start').addEventListener('click', () => {
+    const sel = $('module-select');
+    if (!sel || !sel.value) {
+      const err = $('module-select-error');
+      if (err) err.style.display = 'block';
+      return;
+    }
+    if (sel.value === 'mod2') { window.location.href = 'mod2.html'; return; }
+    const err = $('module-select-error');
+    if (err) err.style.display = 'none';
+    goIdentity();
+  });
 }
 
 // ── Identity screen ───────────────────────────────────────────────────────────

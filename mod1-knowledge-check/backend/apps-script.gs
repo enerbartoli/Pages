@@ -54,7 +54,7 @@ const QUESTION_TEXT = {
 const ANSWER_KEY_MOD2 = {
   Q1:'A', Q2:'B', Q3:'C', Q4:'C', Q5:'D',
   Q6:'B', Q7:'B', Q8:'C', Q9:'A', Q10:'A',
-  Q11:'D', Q12:'C', Q13:'A', Q14:'D', Q15:'B'
+  Q11:'D', Q12:'C', Q13:'C', Q14:'D', Q15:'B'
 };
 const TOTAL_QUESTIONS_MOD2 = 15;
 const PASS_THRESHOLD_MOD2  = 12;
@@ -64,7 +64,7 @@ const SLIDE_REFS_MOD2 = {
   Q1:'4, 5, 6', Q2:'4',       Q3:'7, 8',        Q4:'9, 10',
   Q5:'11, 12, 13, 14',        Q6:'24',           Q7:'32',
   Q8:'29',      Q9:'26',      Q10:'37',          Q11:'31',
-  Q12:'39',     Q13:'44',     Q14:'51',          Q15:'54'
+  Q12:'39',     Q13:'9, 10',  Q14:'51',          Q15:'54'
 };
 
 const QUESTION_TEXT_MOD2 = {
@@ -80,7 +80,7 @@ const QUESTION_TEXT_MOD2 = {
   Q10: 'A customer has provided a specific pre-order quantity and timing for a new item with no comparable history. What is the correct way to capture it?',
   Q11: 'An NPI\'s stat baseline already includes the channel-fill volume in its launch shape, but the team needs the fill visible as a discrete set for allocation traceability. What is the correct approach in F1?',
   Q12: 'Last year a deal spike inflated demand for a specific period, and the promotion is not repeating this year. The baseline is now projecting the spike forward as if it were normal seasonality. What is the correct action?',
-  Q13: 'A specific customer has discontinued an item that remains active at other customers. The baseline is still allocating volume to the dropped customer based on past proportions. What is the correct action?',
+  Q13: 'A Warm Start NPI with under 12 months of history has 16 weeks of actuals below the 2026 Resultant plan, and Daybreak has slashed the 2027 baseline by more than half. After reviewing together, you and the Brand Captain agree Daybreak\'s drop is too aggressive and the SKU can still rebound. What is the correct action?',
   Q14: 'A customer is changing its buying route from Domestic to Direct Import. Total demand is unchanged — only the channel is moving. The volume in scope currently sits in the baseline. What is the correct approach?',
   Q15: 'At the BU/brand level the L3 total is accurate against history, but the L2 customer split allocates too much volume to a customer with declining actuals. What is the correct path?'
 };
@@ -98,7 +98,7 @@ const RATIONALES_MOD2 = {
   Q10: 'Pre-orders are entered at confirmed quantity only — adding speculative volume beyond the commitment undermines the rationale for using the enrichment type in the first place.',
   Q11: 'The channel-fill is already in the NPI baseline, so a single positive set would double-count — two offsetting sets keep the total unchanged while making the fill visible for allocation, and both cleanse out after launch.',
   Q12: 'A non-repeating historical spike that the model is echoing forward needs to be removed structurally — negative base trend corrects it now, and flagging the period for historical cleansing prevents the same correction from being needed next cycle.',
-  Q13: 'A customer exit is a structural change — base trend removes the phantom volume while the forecasting-range update prevents the model from continuing to route demand to a customer that no longer takes the item.',
+  Q13: 'When the team has assessed that Daybreak\'s reduction is too aggressive — not enough history for a structural reset — the correct path is to recalculate demand with commercial knowledge and lock the agreed view via an L2.5 Base Trend adjustment using the Brand Captain\'s template.',
   Q14: 'Channel shift is a routing change, not new demand — the channel-shift functionality moves baseline volume cleanly between channels, while creating offsetting enrichments would distort total demand.',
   Q15: 'When L3 is right, no enrichment is needed — enriching at L1 to fix an L2 split would inflate L3 total demand, so the correct path is a disaggregation adjustment routed through DP/Genpact.'
 };
