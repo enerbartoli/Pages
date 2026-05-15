@@ -417,14 +417,17 @@ function sendNotificationEmail(payload, scoreResult, sheetUrl) {
   var total      = TOTAL_QUESTIONS;
   var pct        = scoreResult.percent;
   var status     = scoreResult.pass ? 'PASS' : 'FAIL';
-  var failedNums = scoreResult.failedQNums.join(', ') || 'none';
+  var failedCount = scoreResult.failedQNums.length;
+  var failedList  = failedCount > 0
+    ? '  (' + scoreResult.failedQNums.map(function(n) { return 'Q' + n; }).join(', ') + ')'
+    : '';
 
   var subject = '[MOD 1 Quiz] ' + name + ' — ' + score + '/' + total + ' — ' + status;
   var body =
     name + ' (' + email + ', ' + role + ') just submitted the MOD 1 Knowledge Check.\n\n' +
     'Score: ' + score + ' / ' + total + ' (' + pct + '%)\n' +
     'Status: ' + status + '\n' +
-    'Failed questions: ' + failedNums + '\n\n' +
+    'Questions failed: ' + failedCount + ' of ' + total + failedList + '\n\n' +
     'Full row written to the Sheet:\n' + sheetUrl;
 
   MailApp.sendEmail({
