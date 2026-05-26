@@ -854,6 +854,9 @@ function renderDash() {
   renderHistogram();
   renderHeatmap();
   renderTable();
+  renderPassRateByRole(dashFiltered);
+  renderFirstAttemptPassRate(dashFiltered);
+  renderAttemptsToPAss(dashFiltered);
 }
 
 // ── KPIs ──────────────────────────────────────────────────────────────────────
@@ -874,8 +877,8 @@ function renderKPIs() {
   ];
 
   $('dash-kpis').innerHTML = kpis.map(k =>
-    `<div class="kpi-card">
-      <div class="kpi-val" style="color:${k.color};">${k.val}</div>
+    `<div class="kpi-card" style="padding:14px 8px;">
+      <div class="kpi-val" style="color:${k.color};font-size:26px;">${k.val}</div>
       <div class="kpi-label">${k.label}</div>
     </div>`
   ).join('');
@@ -1108,6 +1111,158 @@ function renderTable() {
         }).join('')}
       </tbody>
     </table>`;
+}
+
+// ── Pass rate by role — any attempt ───────────────────────────────────────────
+function renderPassRateByRole(rows) {
+  const el = $('dash-role-pass');
+  if (!el) return;
+  if (!rows.length) { el.innerHTML = '<p class="muted" style="font-size:13px;">No data yet.</p>'; return; }
+
+  const roleMap = {};
+  rows.forEach(r => {
+    const role = r.role || 'Unknown';
+    if (!roleMap[role]) roleMap[role] = { unique: new Set(), passed: new Set() };
+    roleMap[role].unique.add(r.email);
+    if (r.status === 'Pass') roleMap[role].passed.add(r.email);
+  });
+
+  const entries = Object.entries(roleMap).map(([role, d]) => {
+    const n = d.unique.size, p = d.passed.size;
+    return { role, n, p, rate: n ? p / n : 0 };
+  }).sort((a, b) => b.rate - a.rate);
+
+  const allUnique = new Set(rows.map(r => r.email));
+  const allPassed = new Set(rows.filter(r => r.status === 'Pass').map(r => r.email));
+  const totalRate = allUnique.size ? allPassed.size / allUnique.size : 0;
+
+  el.innerHTML = renderRoleBars([
+    { role: 'Total', n: allUnique.size, p: allPassed.size, rate: totalRate, isTotal: true },
+    ...entries
+  ]);
+}
+
+// ── Pass rate by role — first attempt ─────────────────────────────────────────
+function renderFirstAttemptPassRate(rows) {
+  const el = $('dash-role-first');
+  if (!el) return;
+  if (!rows.length) { el.innerHTML = '<p class="muted" style="font-size:13px;">No data yet.</p>'; return; }
+
+  const firstByEmail = {};
+  rows.forEach(r => {
+    if (!firstByEmail[r.email] || new Date(r.timestamp) < new Date(firstByEmail[r.email].timestamp)) {
+      firstByEmail[r.email] = r;
+    }
+  });
+  const firstAttempts = Object.values(firstByEmail);
+
+  const roleMap = {};
+  firstAttempts.forEach(r => {
+    const role = r.role || 'Unknown';
+    if (!roleMap[role]) roleMap[role] = { n: 0, p: 0 };
+    roleMap[role].n++;
+    if (r.status === 'Pass') roleMap[role].p++;
+  });
+
+  const entries = Object.entries(roleMap).map(([role, d]) => ({
+    role, n: d.n, p: d.p, rate: d.n ? d.p / d.n : 0
+  })).sort((a, b) => b.rate - a.rate);
+
+  const totalN = firstAttempts.length;
+  const totalP = firstAttempts.filter(r => r.status === 'Pass').length;
+
+  el.innerHTML = renderRoleBars([
+    { role: 'Total', n: totalN, p: totalP, rate: totalN ? totalP / totalN : 0, isTotal: true },
+    ...entries
+  ]);
+}
+
+function renderRoleBars(entries) {
+  return entries.map(e => {
+    const pct   = e.n ? Math.round(e.rate * 100) : 0;
+    const color = e.isTotal ? 'var(--yellow)'
+                : pct >= 70 ? '#14B8A6'
+                : pct >= 40 ? '#FFC72C'
+                : '#F87171';
+    const label = e.n ? `${pct}% (${e.p} / ${e.n})` : 'No data';
+    return `<div class="role-bar-row${e.isTotal ? ' role-bar-total' : ''}">
+      <span class="role-bar-label">${escHtml(e.role)}</span>
+      <div class="role-bar-track">
+        <div class="role-bar-fill" style="width:${pct}%;background:${color};"></div>
+      </div>
+      <span class="role-bar-val" style="color:${color};">${label}</span>
+    </div>`;
+  }).join('');
+}
+
+// ── Attempts to pass ──────────────────────────────────────────────────────────
+function renderAttemptsToPAss(rows) {
+  const canvas = $('chart-attempts');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  const byEmail = {};
+  rows.forEach(r => {
+    if (!byEmail[r.email]) byEmail[r.email] = [];
+    byEmail[r.email].push(r);
+  });
+
+  const passers = [];
+  let notYetPassed = 0;
+  Object.values(byEmail).forEach(attempts => {
+    attempts.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    const firstPass = attempts.findIndex(r => r.status === 'Pass');
+    if (firstPass === -1) notYetPassed++;
+    else passers.push(firstPass + 1);
+  });
+
+  const buckets = [
+    { label: '1',  min: 1, max: 1 },
+    { label: '2',  min: 2, max: 2 },
+    { label: '3',  min: 3, max: 3 },
+    { label: '4+', min: 4, max: Infinity }
+  ];
+  buckets.forEach(b => { b.count = passers.filter(n => n >= b.min && n <= b.max).length; });
+
+  const note = $('chart-attempts-note');
+  if (note) {
+    note.textContent = notYetPassed > 0
+      ? `${notYetPassed} ${notYetPassed === 1 ? 'person has' : 'people have'} attempted without passing yet.`
+      : '';
+  }
+
+  const total = passers.length || 1;
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const padL = 24, padR = 8, padT = 24, padB = 32;
+  const chartW = W - padL - padR, chartH = H - padT - padB;
+  const maxCount = Math.max(...buckets.map(b => b.count), 1);
+  const barW = chartW / buckets.length, gap = 10;
+
+  buckets.forEach((b, i) => {
+    const pct = Math.round((b.count / total) * 100);
+    const bh  = (b.count / maxCount) * chartH;
+    const x   = padL + i * barW + gap / 2;
+    const y   = padT + chartH - bh;
+
+    ctx.fillStyle = '#14B8A6';
+    ctx.beginPath(); ctx.roundRect(x, y, barW - gap, Math.max(bh, 1), [4, 4, 0, 0]); ctx.fill();
+
+    if (b.count > 0) {
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 11px Calibri, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${pct}% (${b.count})`, x + (barW - gap) / 2, y - 4);
+    }
+
+    ctx.fillStyle = '#94A3B8'; ctx.font = '11px Calibri, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(b.label, x + (barW - gap) / 2, H - padB + 14);
+  });
+
+  ctx.fillStyle = '#94A3B8'; ctx.font = '10px Calibri, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Attempts to pass', W / 2, H - 2);
 }
 
 // ── Question drill-down modal ─────────────────────────────────────────────────
