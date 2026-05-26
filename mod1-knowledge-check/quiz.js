@@ -1018,7 +1018,7 @@ function renderHeatmap() {
   $('dash-heatmap').innerHTML = Object.entries(failCount).map(([q, count]) => {
     const pct   = Math.round((count / total) * 100);
     const color = pct >= 50 ? '#F87171' : pct >= 25 ? '#FFC72C' : '#14B8A6';
-    return `<div class="heatmap-row">
+    return `<div class="heatmap-row" style="cursor:pointer;" title="Q${q} — ${pct}% failed · click for details" onclick="showDrillDown(${q})">
       <span class="heatmap-label">Q${q}</span>
       <div class="heatmap-bar-track">
         <div class="heatmap-bar-fill" style="width:${pct}%;background:${color};"></div>
@@ -1097,4 +1097,70 @@ function renderTable() {
         }).join('')}
       </tbody>
     </table>`;
+}
+
+// ── Question drill-down modal ─────────────────────────────────────────────────
+function showDrillDown(qNum) {
+  const q = QUESTIONS.find(x => x.id === qNum);
+  if (!q) return;
+
+  const correctLetter = ANSWER_KEY['Q' + qNum];
+  const rows = dashFiltered;
+
+  // Fail count from r.failed (matches heatmap calculation)
+  let failCount = 0;
+  rows.forEach(r => {
+    const failedNums = (r.failed || '').split(',').map(s => parseInt(s.trim())).filter(Boolean);
+    if (failedNums.includes(qNum)) failCount++;
+  });
+  const failPct = rows.length ? Math.round((failCount / rows.length) * 100) : 0;
+
+  // Per-option breakdown (available only if r.answers is populated)
+  const picks = { A: 0, B: 0, C: 0, D: 0 };
+  let hasAnswerData = false, totalWithAnswers = 0;
+  rows.forEach(r => {
+    if (!r.answers) return;
+    const given = (r.answers['Q' + qNum] || '').toUpperCase();
+    if (!['A', 'B', 'C', 'D'].includes(given)) return;
+    picks[given]++; totalWithAnswers++; hasAnswerData = true;
+  });
+
+  const optionsHTML = ['A', 'B', 'C', 'D'].map(letter => {
+    const isCorrect = letter === correctLetter;
+    const count     = picks[letter] || 0;
+    const pct       = totalWithAnswers ? Math.round((count / totalWithAnswers) * 100) : 0;
+    const cls       = isCorrect ? 'correct' : (count > 0 ? 'wrong-picked' : 'not-picked');
+    let statHTML = '';
+    if (hasAnswerData) {
+      statHTML = isCorrect
+        ? `<div class="drill-option-stat">✓ Correct — ${count} selected (${pct}%)</div>`
+        : `<div class="drill-option-stat">${count} selected (${pct}%)</div>`;
+    } else if (isCorrect) {
+      statHTML = `<div class="drill-option-stat">✓ Correct answer</div>`;
+    }
+    return `<div class="drill-option ${cls}">
+      <span class="drill-option-letter">${letter}</span>
+      <div class="drill-option-text">
+        <div>${escHtml(q.options[letter])}</div>
+        ${statHTML}
+      </div>
+    </div>`;
+  }).join('');
+
+  $('drill-content').innerHTML = `
+    <div class="drill-q-num">Question ${qNum} · ${escHtml(q.section)}</div>
+    <div class="drill-q-text">${escHtml(q.text)}</div>
+    <div class="drill-fail-rate">${failPct}% failure rate (${failCount} of ${rows.length} submission${rows.length !== 1 ? 's' : ''})</div>
+    ${optionsHTML}
+    <div class="drill-slide-ref">📖 Slide${q.slideRefs.includes(',') ? 's' : ''} ${escHtml(q.slideRefs)}</div>
+  `;
+
+  $('drill-modal').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeDrillDown(event) {
+  if (event && event.target !== $('drill-modal')) return;
+  $('drill-modal').classList.add('hidden');
+  document.body.style.overflow = '';
 }

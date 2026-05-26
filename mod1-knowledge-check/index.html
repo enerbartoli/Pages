@@ -336,6 +336,15 @@
       </div>
 
     </div>
+
+    <!-- Question drill-down modal (hidden by default) -->
+    <div id="drill-modal" class="drill-overlay hidden" onclick="closeDrillDown(event)">
+      <div class="drill-panel">
+        <button class="drill-close" onclick="closeDrillDown()" aria-label="Close">&times;</button>
+        <div id="drill-content"></div>
+      </div>
+    </div>
+
   </section>
 
 </div><!-- /#app -->
