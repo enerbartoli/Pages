@@ -250,6 +250,22 @@
         <button id="btn-dash-logout" class="btn-link" style="font-size:12px;color:var(--gray-muted);">Lock 🔒</button>
       </div>
 
+      <!-- Module filter checkboxes + refresh -->
+      <div class="card dash-top-bar">
+        <div class="dash-top-left">
+          <span class="dash-top-label">Modules</span>
+          <div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:4px;">
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--gray-light);cursor:pointer;">
+              <input type="checkbox" class="mod-filter-check" value="mod1" checked style="accent-color:var(--teal);width:14px;height:14px;cursor:pointer;"> MOD 1 — Baseline &amp; Workflow
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--gray-light);cursor:pointer;">
+              <input type="checkbox" class="mod-filter-check" value="mod2" checked style="accent-color:var(--teal);width:14px;height:14px;cursor:pointer;"> MOD 2 — Enrichment Practice
+            </label>
+          </div>
+        </div>
+        <button id="btn-dash-refresh" class="btn btn-ghost" style="padding:9px 16px;font-size:13px;">↻ Refresh data</button>
+      </div>
+
       <!-- Date filter -->
       <div class="card" style="padding:20px 24px;">
         <p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--gray-muted);margin-bottom:14px;">Filter by date range</p>

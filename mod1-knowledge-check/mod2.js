@@ -599,7 +599,7 @@ const DASH_EXPIRY = 8 * 60 * 60 * 1000;
 let dashAllRows     = [];
 let dashRows        = [];
 let dashFiltered    = [];
-let dashModule      = '';
+let dashModules     = new Set();
 let dashLastUpdated = null;
 
 function initDashboard() {
@@ -615,16 +615,15 @@ function initDashboard() {
   $('dash-lookup-btn').addEventListener('click', runLookup);
   $('dash-lookup-input').addEventListener('keydown', e => { if (e.key === 'Enter') runLookup(); });
 
-  $('dash-module-select').addEventListener('change', function() {
-    dashModule = this.value;
-    const url = new URL(window.location);
-    dashModule ? url.searchParams.set('module', dashModule) : url.searchParams.delete('module');
-    history.replaceState(null, '', url);
-    dashRows     = filterByModule(dashAllRows, dashModule);
-    dashFiltered = dashRows;
-    populateRoleFilter();
-    const from = $('dash-date-from').value, to = $('dash-date-to').value, role = $('dash-role-filter').value;
-    if (from || to || role) applyDateFilter(); else renderDash();
+  document.querySelectorAll('.mod-filter-check').forEach(cb => {
+    cb.addEventListener('change', () => {
+      dashModules = new Set([...document.querySelectorAll('.mod-filter-check:checked')].map(c => c.value));
+      dashRows     = filterByModules(dashAllRows, dashModules);
+      dashFiltered = dashRows;
+      populateRoleFilter();
+      const from = $('dash-date-from').value, to = $('dash-date-to').value, role = $('dash-role-filter').value;
+      if (from || to || role) applyDateFilter(); else renderDash();
+    });
   });
 
   $('btn-dash-refresh').addEventListener('click', refreshDash);
@@ -671,13 +670,6 @@ async function showDashContent() {
   hide($('dash-gate'));
   show($('dash-content'));
 
-  const urlMod = new URLSearchParams(window.location.search).get('module') || '';
-  if (urlMod !== dashModule) {
-    dashModule = urlMod;
-    const sel = $('dash-module-select');
-    if (sel) sel.value = dashModule;
-  }
-
   $('dash-table-wrap').innerHTML = '<p class="muted" style="font-size:13px;">Loading…</p>';
   $('dash-kpis').innerHTML = '';
 
@@ -687,7 +679,8 @@ async function showDashContent() {
     dashAllRows  = (data.rows || []).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
     dashLastUpdated = new Date();
     updateLastUpdatedLabel();
-    dashRows     = filterByModule(dashAllRows, dashModule);
+    dashModules  = new Set([...document.querySelectorAll('.mod-filter-check:checked')].map(c => c.value));
+    dashRows     = filterByModules(dashAllRows, dashModules);
     dashFiltered = dashRows;
     populateRoleFilter();
     renderDash();
@@ -954,9 +947,9 @@ function renderTable() {
 }
 
 // ── Module filter helpers ──────────────────────────────────────────────────────
-function filterByModule(rows, mod) {
-  if (!mod) return rows;
-  return rows.filter(r => (r.module || 'mod1') === mod);
+function filterByModules(rows, mods) {
+  if (!mods || !mods.size) return rows;
+  return rows.filter(r => mods.has(r.module || 'mod1'));
 }
 
 function updateLastUpdatedLabel() {

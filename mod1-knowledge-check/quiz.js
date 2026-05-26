@@ -692,8 +692,10 @@ const DASH_HASH    = '3112727bdedc9e678230b70a47eb12222f8e6da33f24a9c5539f50cf4c
 const DASH_LS_KEY  = 'mod1_dash_unlocked';
 const DASH_EXPIRY  = 8 * 60 * 60 * 1000; // 8 hours
 
-let dashRows   = [];   // all rows from Sheet
-let dashFiltered = []; // rows after date filter
+let dashAllRows  = [];
+let dashRows     = [];
+let dashFiltered = [];
+let dashModules  = new Set();
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 function initDashboard() {
@@ -718,6 +720,20 @@ function initDashboard() {
   $('dash-clear-btn').addEventListener('click', clearDateFilter);
   $('dash-lookup-btn').addEventListener('click', runLookup);
   $('dash-lookup-input').addEventListener('keydown', e => { if (e.key === 'Enter') runLookup(); });
+
+  document.querySelectorAll('.mod-filter-check').forEach(cb => {
+    cb.addEventListener('change', () => {
+      dashModules = new Set([...document.querySelectorAll('.mod-filter-check:checked')].map(c => c.value));
+      dashRows     = filterByModules(dashAllRows, dashModules);
+      dashFiltered = dashRows;
+      populateRoleFilter();
+      const from = $('dash-date-from').value, to = $('dash-date-to').value, role = $('dash-role-filter').value;
+      if (from || to || role) applyDateFilter(); else renderDash();
+    });
+  });
+
+  const refreshBtn = $('btn-dash-refresh');
+  if (refreshBtn) refreshBtn.addEventListener('click', () => showDashContent());
 }
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -769,13 +785,20 @@ async function showDashContent() {
   try {
     const res  = await fetch(APPS_SCRIPT_URL + '?action=getData');
     const data = await res.json();
-    dashRows     = (data.rows || []).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    dashAllRows  = (data.rows || []).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    dashModules  = new Set([...document.querySelectorAll('.mod-filter-check:checked')].map(c => c.value));
+    dashRows     = filterByModules(dashAllRows, dashModules);
     dashFiltered = dashRows;
     populateRoleFilter();
     renderDash();
   } catch (err) {
     $('dash-table-wrap').innerHTML = '<p style="color:var(--coral);font-size:13px;">Failed to load data. Make sure the Apps Script is deployed and the Sheet has data.</p>';
   }
+}
+
+function filterByModules(rows, mods) {
+  if (!mods || !mods.size) return rows;
+  return rows.filter(r => mods.has(r.module || 'mod1'));
 }
 
 function populateRoleFilter() {
