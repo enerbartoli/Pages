@@ -123,6 +123,11 @@ function doGet(e) {
     var rows = [];
     for (var i = 1; i < data.length; i++) {
       var r = data[i];
+      var ans = {};
+      for (var qi = 1; qi <= 16; qi++) {
+        var a = String(r[8 + (qi - 1) * 2] || '').toUpperCase().trim();
+        if (a) ans['Q' + qi] = a;
+      }
       rows.push({
         timestamp:  r[0] ? new Date(r[0]).toISOString() : '',
         name:       r[1] || '',
@@ -133,7 +138,8 @@ function doGet(e) {
         status:     r[7] || '',
         failed:     r[40] || '',
         module:     r[43] || 'mod1',
-        attempt:    r[44] || 1
+        attempt:    r[44] || 1,
+        answers:    ans
       });
     }
     return buildResponse({ rows: rows });

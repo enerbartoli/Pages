@@ -1001,31 +1001,42 @@ function renderHistogram() {
 // ── Heatmap ───────────────────────────────────────────────────────────────────
 function renderHeatmap() {
   const rows = dashFiltered;
-  const total = rows.length || 1;
+  if (!rows.length) { $('dash-heatmap').innerHTML = '<p class="muted" style="font-size:13px;">No data.</p>'; return; }
 
-  // Count failures per question from the 'failed' field (comma-separated Q numbers)
-  const failCount = {};
-  for (let i = 1; i <= 16; i++) failCount[i] = 0;
+  const modIds = [...new Set(rows.map(r => r.module || 'mod1'))].sort();
+  const multiMod = modIds.length > 1;
+  let html = '';
 
-  rows.forEach(r => {
-    if (!r.failed) return;
-    String(r.failed).split(',').forEach(s => {
-      const n = parseInt(s.trim());
-      if (n >= 1 && n <= 16) failCount[n]++;
+  modIds.forEach(mod => {
+    const modInfo = DASH_MODULE_REGISTRY[mod];
+    if (!modInfo) return;
+    const modRows = rows.filter(r => (r.module || 'mod1') === mod);
+    const total   = modRows.length || 1;
+    const failCount = {};
+    for (let i = 1; i <= modInfo.totalQ; i++) failCount[i] = 0;
+    modRows.forEach(r => {
+      String(r.failed || '').split(',').forEach(s => {
+        const n = parseInt(s.trim());
+        if (n >= 1 && n <= modInfo.totalQ) failCount[n]++;
+      });
     });
+    if (multiMod) {
+      html += `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--teal);margin:12px 0 6px;padding-bottom:4px;border-bottom:1px solid var(--navy-light);">${modInfo.label}</div>`;
+    }
+    html += Object.entries(failCount).map(([q, count]) => {
+      const pct   = Math.round((count / total) * 100);
+      const color = pct >= 50 ? '#F87171' : pct >= 25 ? '#FFC72C' : '#14B8A6';
+      return `<div class="heatmap-row" style="cursor:pointer;" title="Q${q} — ${pct}% failed · click for details" onclick="showDrillDown(${q}, '${mod}')">
+        <span class="heatmap-label">Q${q}</span>
+        <div class="heatmap-bar-track">
+          <div class="heatmap-bar-fill" style="width:${pct}%;background:${color};"></div>
+        </div>
+        <span class="heatmap-pct" style="color:${color};">${pct}%</span>
+      </div>`;
+    }).join('');
   });
 
-  $('dash-heatmap').innerHTML = Object.entries(failCount).map(([q, count]) => {
-    const pct   = Math.round((count / total) * 100);
-    const color = pct >= 50 ? '#F87171' : pct >= 25 ? '#FFC72C' : '#14B8A6';
-    return `<div class="heatmap-row" style="cursor:pointer;" title="Q${q} — ${pct}% failed · click for details" onclick="showDrillDown(${q})">
-      <span class="heatmap-label">Q${q}</span>
-      <div class="heatmap-bar-track">
-        <div class="heatmap-bar-fill" style="width:${pct}%;background:${color};"></div>
-      </div>
-      <span class="heatmap-pct" style="color:${color};">${pct}%</span>
-    </div>`;
-  }).join('');
+  $('dash-heatmap').innerHTML = html;
 }
 
 // ── Lookup ────────────────────────────────────────────────────────────────────
@@ -1100,22 +1111,23 @@ function renderTable() {
 }
 
 // ── Question drill-down modal ─────────────────────────────────────────────────
-function showDrillDown(qNum) {
-  const q = QUESTIONS.find(x => x.id === qNum);
+function showDrillDown(qNum, moduleId) {
+  moduleId = moduleId || 'mod1';
+  const modInfo = DASH_MODULE_REGISTRY[moduleId];
+  if (!modInfo) return;
+  const q = modInfo.questions.find(x => x.id === qNum);
   if (!q) return;
 
-  const correctLetter = ANSWER_KEY['Q' + qNum];
-  const rows = dashFiltered;
+  const correctLetter = modInfo.answerKey['Q' + qNum];
+  const rows = dashFiltered.filter(r => (r.module || 'mod1') === moduleId);
 
-  // Fail count from r.failed (matches heatmap calculation)
   let failCount = 0;
   rows.forEach(r => {
-    const failedNums = (r.failed || '').split(',').map(s => parseInt(s.trim())).filter(Boolean);
-    if (failedNums.includes(qNum)) failCount++;
+    const nums = String(r.failed || '').split(',').map(s => parseInt(s.trim())).filter(Boolean);
+    if (nums.includes(qNum)) failCount++;
   });
   const failPct = rows.length ? Math.round((failCount / rows.length) * 100) : 0;
 
-  // Per-option breakdown (available only if r.answers is populated)
   const picks = { A: 0, B: 0, C: 0, D: 0 };
   let hasAnswerData = false, totalWithAnswers = 0;
   rows.forEach(r => {
@@ -1130,31 +1142,24 @@ function showDrillDown(qNum) {
     const count     = picks[letter] || 0;
     const pct       = totalWithAnswers ? Math.round((count / totalWithAnswers) * 100) : 0;
     const cls       = isCorrect ? 'correct' : (count > 0 ? 'wrong-picked' : 'not-picked');
-    let statHTML = '';
-    if (hasAnswerData) {
-      statHTML = isCorrect
-        ? `<div class="drill-option-stat">✓ Correct — ${count} selected (${pct}%)</div>`
-        : `<div class="drill-option-stat">${count} selected (${pct}%)</div>`;
-    } else if (isCorrect) {
-      statHTML = `<div class="drill-option-stat">✓ Correct answer</div>`;
-    }
+    const statHTML  = hasAnswerData
+      ? (isCorrect
+          ? `<div class="drill-option-stat">✓ Correct — ${count} selected (${pct}%)</div>`
+          : `<div class="drill-option-stat">${count} selected (${pct}%)</div>`)
+      : (isCorrect ? `<div class="drill-option-stat">✓ Correct answer</div>` : '');
     return `<div class="drill-option ${cls}">
       <span class="drill-option-letter">${letter}</span>
-      <div class="drill-option-text">
-        <div>${escHtml(q.options[letter])}</div>
-        ${statHTML}
-      </div>
+      <div class="drill-option-text"><div>${escHtml(q.options[letter])}</div>${statHTML}</div>
     </div>`;
   }).join('');
 
   $('drill-content').innerHTML = `
-    <div class="drill-q-num">Question ${qNum} · ${escHtml(q.section)}</div>
+    <div class="drill-q-num">Question ${qNum} · ${escHtml(modInfo.label)} · ${escHtml(q.section)}</div>
     <div class="drill-q-text">${escHtml(q.text)}</div>
     <div class="drill-fail-rate">${failPct}% failure rate (${failCount} of ${rows.length} submission${rows.length !== 1 ? 's' : ''})</div>
     ${optionsHTML}
     <div class="drill-slide-ref">📖 Slide${q.slideRefs.includes(',') ? 's' : ''} ${escHtml(q.slideRefs)}</div>
   `;
-
   $('drill-modal').classList.remove('hidden');
   document.body.style.overflow = 'hidden';
 }
