@@ -43,6 +43,7 @@ Crear siempre una branch descriptiva desde main. Nunca commitear directo a main.
 
 1. **Resumen general** — `total_memories`, fecha de `stats.json`, botón de reload.
    - **Indicador de freshness (Fase 6b):** si `stats._metadata.scan_skipped == true`, muestra `ℹ️ Métricas de Mem0 actualizadas hace X` (o `⚠️` si > 24h). Sin `_metadata` → sin indicador (backward compat).
+   - **Warning 429 (Fase 7):** si `stats._metadata.last_attempt_error === '429'`, muestra `⚠️ Cupo de Mem0 agotado` con timestamp del último intento fallido y del último scan exitoso. Color `var(--warning, #f5a623)`. Se muestra en lugar del indicador de freshness normal.
    - **Botón 🔄 Forzar refresh de stats:** dispara `memory_pipeline.yml` vía `workflow_dispatch`. Al ser `workflow_dispatch`, stats.py siempre hace scan completo independientemente del delta.
    - Muestra botón `⚙️ Configurar GitHub PAT` cuando el PAT no está configurado.
 2. **Google Drive** — archivos totales, renamed, pending. Botones: `🔍 Dry-run rename` y `✏ Renombrar pendientes` (con `confirm()` para el apply).
