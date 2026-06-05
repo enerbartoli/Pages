@@ -308,7 +308,7 @@
         <option value="claude-sonnet-4-6">Sonnet 4.6</option>
         <option value="claude-opus-4-6">Opus 4.6</option>
       </select>
-      <span class="version-badge" id="version-badge">V60.1</span>
+      <span class="version-badge" id="version-badge">V61.1</span>
       <div class="header-status">
         <div class="status-dot" id="status-dot"></div>
         <span id="status-text">connecting...</span>
@@ -616,7 +616,7 @@ let selectedPeriod='today';
 let webSearchEnabled=false;
 let thinkingEnabled=false;
 let detailEnabled=false;
-const MNEMO_VERSION='V60.1';
+const MNEMO_VERSION='V61.1';
 let gNodes=[], gEdges=[], gDragging=null, gHovered=null, gAnimFrame=null, gSimMaxV=4;
 
 const PRICING = {
@@ -1097,12 +1097,17 @@ async function askClaude(msg,ctx) {
 }
 
 // ── MEM0
+const MEM0_CACHE_TTL=5*60*1000; // 5 minutes
+let _memoriesCachedAt=0;
+
 async function fetchMemories(limit=100) {
   const res=await fetch(`https://api.mem0.ai/v1/memories/?user_id=${USER_ID}&limit=${limit}`,{headers:{'Authorization':`Token ${MEM0_KEY}`}});
   if(!res.ok) throw new Error(`Mem0 ${res.status}`);
   const data=await res.json(); return Array.isArray(data)?data:(data.results||[]);
 }
 async function fetchAllMemories() {
+  // Return cached memories if still fresh
+  if(memories.length>0 && Date.now()-_memoriesCachedAt<MEM0_CACHE_TTL) return memories;
   const PAGE=200, MAX_PAGES=50, all=[];
   for(let page=1;page<=MAX_PAGES;page++){
     const res=await fetch(`https://api.mem0.ai/v1/memories/?user_id=${USER_ID}&page_size=${PAGE}&page=${page}`,{headers:{'Authorization':`Token ${MEM0_KEY}`}});
@@ -1112,6 +1117,7 @@ async function fetchAllMemories() {
     all.push(...results);
     if(results.length<PAGE) break;
   }
+  _memoriesCachedAt=Date.now();
   return all;
 }
 async function loadMemories() {
