@@ -308,7 +308,7 @@
         <option value="claude-sonnet-4-6">Sonnet 4.6</option>
         <option value="claude-opus-4-6">Opus 4.6</option>
       </select>
-      <span class="version-badge" id="version-badge">V54.1</span>
+      <span class="version-badge" id="version-badge">V55.1</span>
       <div class="header-status">
         <div class="status-dot" id="status-dot"></div>
         <span id="status-text">connecting...</span>
@@ -616,7 +616,7 @@ let selectedPeriod='today';
 let webSearchEnabled=false;
 let thinkingEnabled=false;
 let detailEnabled=false;
-const MNEMO_VERSION='V54.1';
+const MNEMO_VERSION='V55.1';
 let gNodes=[], gEdges=[], gDragging=null, gHovered=null, gAnimFrame=null, gSimMaxV=4;
 
 const PRICING = {
@@ -1311,7 +1311,7 @@ async function loadDashboard() {
   if(local.hidden_projects||local.priority_projects)
     dashboardConfig={id:dashboardConfig?.id||null,memory:'MNEMO dashboard configuration.',metadata:{type:'dashboard_config',...local}};
   try {
-    const mems=await fetchMemories(500);
+    const mems=await fetchMemories(1000);
     const mem0Cfg=mems.find(m=>m.metadata?.type==='dashboard_config');
     if(mem0Cfg){ dashboardConfig=mem0Cfg; _dcSave(mem0Cfg.metadata); }
     renderDashboard(mems);
@@ -1332,9 +1332,10 @@ function renderDashboard(mems) {
     const type=meta.type||'general';
     byType[type]=(byType[type]||0)+1;
 
-    // Projects
-    if(meta.project_name){
-      const key=meta.project_name;
+    // Projects — field is "project" (set by pipeline.py), not "project_name"
+    const _projName=meta.project||meta.project_name;
+    if(_projName&&_projName!=='general'){
+      const key=_projName;
       if(!projectMap[key]) projectMap[key]={name:key,count:0};
       projectMap[key].count++;
     }
@@ -1508,8 +1509,7 @@ async function loadGraph(){
   ctx.fillStyle='#6b6880';ctx.font='13px DM Sans,sans-serif';ctx.textAlign='center';
   ctx.fillText('Loading graph...',canvas.width/2,canvas.height/2);
   try{
-    const mems=await fetchMemories(300);
-    // === DEBUG TEMPORAL: inspeccionar shape de Mem0 ===
+    const mems=await fetchMemories(1000);
     buildGraph(mems);runSimulation();
   }
   catch(e){ctx.fillText('Error loading',canvas.width/2,canvas.height/2);}
@@ -1628,7 +1628,8 @@ function buildGraph(mems){
   mems.forEach(m=>{
     const meta=m.metadata||{},text=m.memory||'';
     const memId=m.id||m.memory_id||text.substring(0,32);
-    const projName=meta.project_name;
+    // field is "project" (pipeline.py), fall back to "project_name" for legacy
+    const projName=(meta.project&&meta.project!=='general')?meta.project:meta.project_name;
 
     if(projName){
       if(/^(user |the user |usuario )/i.test(projName)){
@@ -1672,7 +1673,7 @@ function buildGraph(mems){
     return cats.some(c=>c==='professional_details'||c==='technology'||c==='milestones');
   }).forEach(m=>{
     const meta=m.metadata||{},text=m.memory||'';
-    const projName=meta.project_name;
+    const projName=(meta.project&&meta.project!=='general')?meta.project:meta.project_name;
     (text.match(/\b([A-Z][a-záéíóúü]{2,14} [A-Z][a-záéíóúü]{2,14})\b/g)||[]).filter(isValidPerson).forEach(name=>{
       if(/René|Rene|Bartoli/.test(name)) return;
       personCount[name]=(personCount[name]||0)+1;
