@@ -308,7 +308,7 @@
         <option value="claude-sonnet-4-6">Sonnet 4.6</option>
         <option value="claude-opus-4-6">Opus 4.6</option>
       </select>
-      <span class="version-badge" id="version-badge">V57.1</span>
+      <span class="version-badge" id="version-badge">V58.1</span>
       <div class="header-status">
         <div class="status-dot" id="status-dot"></div>
         <span id="status-text">connecting...</span>
@@ -616,7 +616,7 @@ let selectedPeriod='today';
 let webSearchEnabled=false;
 let thinkingEnabled=false;
 let detailEnabled=false;
-const MNEMO_VERSION='V57.1';
+const MNEMO_VERSION='V58.1';
 let gNodes=[], gEdges=[], gDragging=null, gHovered=null, gAnimFrame=null, gSimMaxV=4;
 
 const PRICING = {
@@ -1310,13 +1310,13 @@ async function loadDashboard() {
   if(local.hidden_projects||local.priority_projects)
     dashboardConfig={id:dashboardConfig?.id||null,memory:'MNEMO dashboard configuration.',metadata:{type:'dashboard_config',...local}};
   try {
-    // Reuse the already-loaded memories array to avoid an extra Mem0 API call.
-    // Fall back to a fresh fetch only if init hasn't run yet.
     const mems=memories.length>0 ? memories : await fetchMemories(200);
     const mem0Cfg=mems.find(m=>m.metadata?.type==='dashboard_config');
     if(mem0Cfg){ dashboardConfig=mem0Cfg; _dcSave(mem0Cfg.metadata); }
     renderDashboard(mems);
-  } catch(e){ content.innerHTML=`<div class="empty-state"><div class="icon">⚠️</div>Error: ${e.message}</div>`; }
+  } catch(e){
+    content.innerHTML=`<div class="empty-state"><div class="icon">⚠️</div><div style="font-family:monospace;font-size:11px;color:#f87171;word-break:break-all">${e.name}: ${e.message}<br><br>memories loaded: ${memories.length}<br>stack: ${(e.stack||'').substring(0,300)}</div></div>`;
+  }
 }
 
 function renderDashboard(mems) {
@@ -1516,7 +1516,10 @@ async function loadGraph(){
   }
   catch(e){
     ctx.fillStyle='#f87171';ctx.font='13px DM Sans,sans-serif';ctx.textAlign='center';
-    ctx.fillText('Error: '+e.message,canvas.width/2,canvas.height/2);
+    ctx.fillText(e.name+': '+e.message,canvas.width/2,canvas.height/2-10);
+    ctx.fillStyle='#9896b0';ctx.font='11px DM Mono,monospace';
+    ctx.fillText('memories: '+memories.length,canvas.width/2,canvas.height/2+10);
+    console.error('[MNEMO graph]',e);
   }
 }
 function buildGraph(mems){
