@@ -308,7 +308,7 @@
         <option value="claude-sonnet-4-6">Sonnet 4.6</option>
         <option value="claude-opus-4-6">Opus 4.6</option>
       </select>
-      <span class="version-badge" id="version-badge">V36.1</span>
+      <span class="version-badge" id="version-badge">V53.1</span>
       <div class="header-status">
         <div class="status-dot" id="status-dot"></div>
         <span id="status-text">connecting...</span>
@@ -494,7 +494,7 @@
           <div style="font-size:11px;color:var(--text3)" id="adm-age">stats.json: —</div>
           <div id="adm-scan-info" style="font-size:11px;margin-top:2px"></div>
           <div style="margin-top:4px">
-            <button class="admin-btn" id="stats-refresh-btn" onclick="triggerStatsRefresh()" title="Fuerza un run del pipeline que incluye scan completo de Mem0. Útil cuando scan_skipped lleva más de 24h.">🔄 Forzar refresh de stats</button>
+            <button class="admin-btn" id="stats-refresh-btn" onclick="triggerStatsRefresh()" title="Fuerza un run del pipeline que incluye scan completo de Mem0. Solo intentar después del reset mensual (día 1 de cada mes).">🔄 Forzar refresh de stats</button>
             <div class="wf-status" id="stats-refresh-status"></div>
           </div>
           <div id="adm-pipelines" style="display:flex;flex-direction:column;gap:0;margin-top:2px"></div>
@@ -616,7 +616,7 @@ let selectedPeriod='today';
 let webSearchEnabled=false;
 let thinkingEnabled=false;
 let detailEnabled=false;
-const MNEMO_VERSION='V36.1';
+const MNEMO_VERSION='V53.1';
 let gNodes=[], gEdges=[], gDragging=null, gHovered=null, gAnimFrame=null, gSimMaxV=4;
 
 const PRICING = {
@@ -1941,7 +1941,11 @@ function renderAdmin() {
   document.getElementById('adm-age').textContent=`stats.json: ${relativeTime(s.generated_at)}`;
   const meta=s._metadata||{};
   const scanInfo=document.getElementById('adm-scan-info');
-  if(meta.scan_skipped&&meta.last_full_scan){
+  if(meta.last_attempt_error==='429'){
+    const lastOk=meta.last_full_scan?relativeTime(meta.last_full_scan):'desconocido';
+    scanInfo.innerHTML=`⚠️ Cupo de Mem0 agotado. Último intento fallido: ${relativeTime(meta.last_attempt)}.<br>Las métricas mostradas corresponden al último scan exitoso (${lastOk}). El cupo se resetea el día 1 de cada mes.`;
+    scanInfo.style.color='var(--warning,#f5a623)';
+  } else if(meta.scan_skipped&&meta.last_full_scan){
     const ageH=(Date.now()-new Date(meta.last_full_scan).getTime())/3600000;
     if(ageH>24){
       scanInfo.innerHTML=`⚠️ Métricas de Mem0 con más de 24h — considera forzar refresh`;
