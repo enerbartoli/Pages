@@ -308,7 +308,7 @@
         <option value="claude-sonnet-4-6">Sonnet 4.6</option>
         <option value="claude-opus-4-6">Opus 4.6</option>
       </select>
-      <span class="version-badge" id="version-badge">V62.1</span>
+      <span class="version-badge" id="version-badge">V63.1</span>
       <div class="header-status">
         <div class="status-dot" id="status-dot"></div>
         <span id="status-text">connecting...</span>
@@ -616,7 +616,7 @@ let selectedPeriod='today';
 let webSearchEnabled=false;
 let thinkingEnabled=false;
 let detailEnabled=false;
-const MNEMO_VERSION='V62.1';
+const MNEMO_VERSION='V63.1';
 let gNodes=[], gEdges=[], gDragging=null, gHovered=null, gAnimFrame=null, gSimMaxV=4;
 
 const PRICING = {
@@ -1016,8 +1016,8 @@ async function sendMessage() {
 
   const indicator=appendTyping();
   try {
-    const mems=await fetchMemories(5);
-    const ctx=mems.map(m=>`• ${(m.memory||'').substring(0,150)}`).join('\n')||'No memories yet.';
+    const mems=searchLocalMemories(text,12);
+    const ctx=mems.map(m=>`• ${(m.memory||'').substring(0,200)}`).join('\n')||'No memories yet.';
     const {reply,usage}=await askClaude(userContent,ctx);
     indicator.remove(); appendMsg('assistant',reply);
     chatMessages.push({role:'assistant',content:reply});
@@ -1099,6 +1099,20 @@ async function askClaude(msg,ctx) {
 // ── MEM0
 const MEM0_CACHE_TTL=5*60*1000; // 5 minutes
 let _memoriesCachedAt=0;
+
+function searchLocalMemories(query, limit=12) {
+  if(!memories.length) return [];
+  const terms=query.toLowerCase().split(/\s+/).filter(t=>t.length>2);
+  if(!terms.length) return memories.slice(0,limit);
+  const scored=memories.map(m=>{
+    const text=(m.memory||'').toLowerCase();
+    const metaStr=JSON.stringify(m.metadata||{}).toLowerCase();
+    const combined=text+' '+metaStr;
+    const score=terms.reduce((s,t)=>s+(combined.split(t).length-1),0);
+    return{m,score};
+  }).filter(x=>x.score>0).sort((a,b)=>b.score-a.score);
+  return scored.slice(0,limit).map(x=>x.m);
+}
 
 async function fetchMemories(limit=100) {
   const res=await fetch(`https://api.mem0.ai/v1/memories/?user_id=${USER_ID}&limit=${limit}`,{headers:{'Authorization':`Token ${MEM0_KEY}`}});
