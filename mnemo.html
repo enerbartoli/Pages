@@ -94,6 +94,13 @@
   .msg .msg-attachments img { max-width: 220px; max-height: 220px; border-radius: 8px; cursor: pointer; display: block; }
   .msg .msg-attachments .file-tag { background: rgba(255,255,255,0.1); border-radius: 6px; padding: 4px 8px; font-size: 11px; display: flex; align-items: center; gap: 5px; }
   .msg.assistant .msg-attachments .file-tag { background: var(--surface); border: 1px solid var(--border); }
+  .msg-actions { display: flex; gap: 6px; margin-top: 8px; }
+  .msg-copy-btn { background: transparent; border: 1px solid var(--border); border-radius: 7px; color: var(--text3); cursor: pointer; font-family: inherit; font-size: 10px; padding: 3px 9px; transition: all 0.2s; display: inline-flex; align-items: center; gap: 4px; }
+  .msg-copy-btn:hover { border-color: var(--accent); color: var(--accent2); }
+  .retry-btn { background: transparent; border: 1px solid var(--danger); border-radius: 7px; color: var(--danger); cursor: pointer; font-family: inherit; font-size: 11px; padding: 3px 10px; margin-left: 8px; transition: all 0.2s; }
+  .retry-btn:hover { background: rgba(248,113,113,0.12); }
+  .resuming { color: var(--warn); font-size: 12px; display: inline-flex; align-items: center; gap: 6px; }
+  .resuming::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--warn); animation: pulse 1.2s infinite ease-in-out; }
 
   /* MODAL */
   .modal-overlay { position: fixed; inset: 0; background: rgba(10,10,15,0.85); backdrop-filter: blur(4px); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 14px; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
@@ -348,6 +355,10 @@
           <div class="tts-toggle" onclick="toggleDetail()" title="Detail mode — full responses, higher token usage">
             <div class="toggle-switch" id="detail-switch"></div>
             <span style="font-size:13px">📝</span>
+          </div>
+          <div class="tts-toggle" onclick="toggleDeepQuery()" title="Consulta profunda — recupera TODAS las memorias de un periodo o tema (no solo las más relevantes)">
+            <div class="toggle-switch" id="deep-switch"></div>
+            <span style="font-size:13px">🗂</span>
           </div>
           <button class="summary-btn" onclick="openSummary()">📋 Export</button>
         </div>
@@ -616,6 +627,7 @@ let selectedPeriod='today';
 let webSearchEnabled=false;
 let thinkingEnabled=false;
 let detailEnabled=false;
+let deepQueryEnabled=false;
 const MNEMO_VERSION='V63.1';
 let gNodes=[], gEdges=[], gDragging=null, gHovered=null, gAnimFrame=null, gSimMaxV=4;
 
@@ -920,6 +932,7 @@ function toggleTTS() {
 function toggleWebSearch() { webSearchEnabled=!webSearchEnabled; document.getElementById('ws-switch').className='toggle-switch'+(webSearchEnabled?' on':''); appendMsg('system', webSearchEnabled ? '🔍 Web search ON' : '🔍 Web search OFF'); }
 function toggleThinking() { thinkingEnabled=!thinkingEnabled; document.getElementById('think-switch').className='toggle-switch'+(thinkingEnabled?' on':''); appendMsg('system', thinkingEnabled ? '🧠 Thinking mode ON — deeper reasoning, higher cost' : '🧠 Thinking mode OFF'); }
 function toggleDetail() { detailEnabled=!detailEnabled; document.getElementById('detail-switch').className='toggle-switch'+(detailEnabled?' on':''); appendMsg('system', detailEnabled ? '📝 Detail mode ON — full responses' : '📝 Detail mode OFF — concise responses'); }
+function toggleDeepQuery() { deepQueryEnabled=!deepQueryEnabled; document.getElementById('deep-switch').className='toggle-switch'+(deepQueryEnabled?' on':''); appendMsg('system', deepQueryEnabled ? '🗂 Consulta profunda ON — recupera TODAS las memorias de un periodo/tema. Ej: "todo lo de junio 2026" o "reuniones de forecast de las últimas dos semanas"' : '🗂 Consulta profunda OFF — recuperación normal por relevancia'); }
 function speak(text) {
   if (!ttsEnabled || !('speechSynthesis' in window) || !text) return;
   window.speechSynthesis.cancel();
@@ -1003,6 +1016,35 @@ function renderAttachPreviews(){
 }
 
 // ── CHAT
+// Build the memory context string for Claude. With deep query OFF this is the
+// default local relevance search (top 12). With it ON, retrieves ALL memories
+// matching the parsed period/subject and injects a truncated summary (~60 max).
+const DEEP_INJECT_MAX=60, DEEP_INJECT_CHARS=200;
+function prepareContext(text){
+  if(deepQueryEnabled){
+    const filter=parseDeepQuery(text);
+    const matched=deepFilterMemories(filter);
+    const period=(filter.from||filter.to)?`${filter.from||'…'} → ${filter.to||'…'}`:'todo el historial';
+    const subj=filter.subject?` · tema: "${filter.subject}"`:'';
+    if(!matched.length){
+      appendMsg('system',`🗂 Consulta profunda: 0 memorias coinciden (${period}${subj}).`);
+      return 'No memories matched the requested period/subject.';
+    }
+    const shown=matched.slice(0,DEEP_INJECT_MAX);
+    const more=matched.length>DEEP_INJECT_MAX
+      ? ` — mostrando resumen de ${DEEP_INJECT_MAX}, hay ${matched.length} en total`
+      : '';
+    appendMsg('system',`🗂 Encontré ${matched.length} memorias que coinciden (${period}${subj})${more}.`);
+    const ctx=shown.map(m=>{
+      const d=(m.metadata?.date||m.created_at||'').split('T')[0];
+      return `• [${d||'s/f'}] ${(m.memory||'').substring(0,DEEP_INJECT_CHARS)}`;
+    }).join('\n');
+    return `Deep query results (${period}${subj}), ${matched.length} total memories${more}:\n${ctx}`;
+  }
+  const mems=searchLocalMemories(text,12);
+  return mems.map(m=>`• ${(m.memory||'').substring(0,200)}`).join('\n')||'No memories yet.';
+}
+
 async function sendMessage() {
   const input=document.getElementById('chat-input'), text=input.value.trim();
   const attachments=pendingAttachments.slice();
@@ -1014,18 +1056,68 @@ async function sendMessage() {
   appendMsg('user',text,attachments);
   chatMessages.push({role:'user',content:userContent});
 
-  const indicator=appendTyping();
-  try {
-    const mems=searchLocalMemories(text,12);
-    const ctx=mems.map(m=>`• ${(m.memory||'').substring(0,200)}`).join('\n')||'No memories yet.';
-    const {reply,usage}=await askClaude(userContent,ctx);
-    indicator.remove(); appendMsg('assistant',reply);
+  // Retrieval is fully local (no network) — its UI side effects run once here so
+  // an iOS-interrupted retry (CAMBIO 3) never duplicates the deep-query count msg.
+  const ctx=prepareContext(text);
+  const memText=text || (attachments.length?`[Shared ${attachments.length} file${attachments.length>1?'s':''}: ${attachments.map(a=>a.name).join(', ')}]`:'');
+  const turn={userContent,ctx,memText,indicator:appendTyping(),attempts:0,id:++_turnSeq};
+  _turns[turn.id]=turn;
+  attemptChatTurn(turn);
+}
+
+// ── iOS BACKGROUNDING RESILIENCE (CAMBIO 3) ──────────────────────────────
+// On iOS, WebKit aborts in-flight fetches when the app is backgrounded. We
+// distinguish that interruption from a real API error and auto-retry once when
+// the app returns to foreground, without duplicating the response or the Mem0 save.
+let _turnSeq=0; const _turns={};
+function _isInterruption(e){
+  if(!e) return false;
+  if(e.name==='AbortError'||e.name==='TypeError') return true;
+  const m=(e.message||'').toLowerCase();
+  return m.includes('load failed')||m.includes('failed to fetch')||m.includes('network');
+}
+async function attemptChatTurn(turn){
+  turn.attempts++;
+  let wasHidden=document.visibilityState==='hidden';
+  const onVis=()=>{ if(document.visibilityState==='hidden') wasHidden=true; };
+  document.addEventListener('visibilitychange',onVis);
+  try{
+    const {reply,usage}=await askClaude(turn.userContent,turn.ctx);
+    document.removeEventListener('visibilitychange',onVis);
+    turn.indicator.remove(); appendMsg('assistant',reply);
     chatMessages.push({role:'assistant',content:reply});
     speak(reply);
     if(usage) logUsage(selectedModel,usage.input_tokens||0,usage.output_tokens||0);
-    const memText=text || (attachments.length?`[Shared ${attachments.length} file${attachments.length>1?'s':''}: ${attachments.map(a=>a.name).join(', ')}]`:'');
-    saveToMem0(memText,reply);
-  } catch(e){ indicator.remove(); appendMsg('system',`⚠️ ${e.message}`); }
+    saveToMem0(turn.memText,reply);   // only on final success — idempotent
+    delete _turns[turn.id];
+  }catch(e){
+    document.removeEventListener('visibilitychange',onVis);
+    const interrupted=_isInterruption(e);
+    const stillHidden=document.visibilityState==='hidden';
+    // Interrupted by backgrounding and not yet retried → resume on foreground
+    if(interrupted && (wasHidden||stillHidden) && turn.attempts<2){
+      turn.indicator.innerHTML='<span class="resuming">reanudando al volver a la app…</span>';
+      if(document.visibilityState==='visible'){
+        setTimeout(()=>{ turn.indicator.innerHTML='<div class="dot-pulse"><span></span><span></span><span></span></div>'; attemptChatTurn(turn); },600);
+      } else {
+        const onResume=()=>{ if(document.visibilityState==='visible'){
+          document.removeEventListener('visibilitychange',onResume);
+          turn.indicator.innerHTML='<div class="dot-pulse"><span></span><span></span><span></span></div>';
+          setTimeout(()=>attemptChatTurn(turn),600);
+        }};
+        document.addEventListener('visibilitychange',onResume);
+      }
+    } else {
+      // Real API error, or interruption already retried in foreground → manual retry
+      turn.indicator.innerHTML=`⚠️ ${esc(e.message||'Error')}<button class="retry-btn" onclick="retryChatTurn(${turn.id})">Reintentar</button>`;
+    }
+  }
+}
+function retryChatTurn(id){
+  const turn=_turns[id]; if(!turn) return;
+  turn.attempts=0;
+  turn.indicator.innerHTML='<div class="dot-pulse"><span></span><span></span><span></span></div>';
+  attemptChatTurn(turn);
 }
 
 function buildUserContent(text,attachments){
@@ -1059,7 +1151,26 @@ function appendMsg(role,text,attachments) {
     html+='</div>';
   }
   if(text) html+=fmt(text);
-  d.innerHTML=html; c.appendChild(d); c.scrollTop=c.scrollHeight; return d;
+  d.innerHTML=html; c.appendChild(d);
+  // Copy button on assistant bubbles only (CAMBIO 1) — copies plain text, not HTML
+  if(role==='assistant' && text){
+    const actions=document.createElement('div'); actions.className='msg-actions';
+    const btn=document.createElement('button'); btn.className='msg-copy-btn'; btn.textContent='Copiar';
+    btn.onclick=()=>copyMessage(btn,text);
+    actions.appendChild(btn); d.appendChild(actions);
+  }
+  c.scrollTop=c.scrollHeight; return d;
+}
+function copyMessage(btn,text){
+  const done=()=>{ btn.textContent='Copiado ✓'; setTimeout(()=>btn.textContent='Copiar',1500); };
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(done).catch(()=>fallbackCopy(text,done));
+  } else fallbackCopy(text,done);
+}
+function fallbackCopy(text,done){
+  const ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.opacity='0';
+  document.body.appendChild(ta); ta.select();
+  try{ document.execCommand('copy'); done(); }catch(e){} document.body.removeChild(ta);
 }
 function appendTyping() {
   const c=document.getElementById('chat-messages'), d=document.createElement('div');
@@ -1112,6 +1223,67 @@ function searchLocalMemories(query, limit=12) {
     return{m,score};
   }).filter(x=>x.score>0).sort((a,b)=>b.score-a.score);
   return scored.slice(0,limit).map(x=>x.m);
+}
+
+// ── DEEP QUERY (CAMBIO 2) ────────────────────────────────────────────────
+// Parses natural-language period + subject from the user's message.
+// Returns {from, to, subject, hadDate}. Dates are ISO YYYY-MM-DD or null.
+const _DQ_MONTHS={enero:0,febrero:1,marzo:2,abril:3,mayo:4,junio:5,julio:6,agosto:7,septiembre:8,setiembre:8,octubre:9,noviembre:10,diciembre:11};
+function _dqIso(d){return d.toISOString().split('T')[0];}
+function parseDeepQuery(text){
+  const t=text.toLowerCase();
+  const now=new Date();
+  let from=null,to=null,matched='';
+  const mNames=Object.keys(_DQ_MONTHS).join('|');
+  let m;
+  if((m=t.match(/[uú]ltima?s?\s+dos\s+semanas|[uú]ltimas?\s+2\s+semanas/))){
+    const d=new Date(now); d.setDate(d.getDate()-14); from=_dqIso(d); to=_dqIso(now); matched=m[0];
+  } else if((m=t.match(/[uú]ltim[oa]s?\s+(\d+)\s+d[ií]as/))){
+    const d=new Date(now); d.setDate(d.getDate()-parseInt(m[1])); from=_dqIso(d); to=_dqIso(now); matched=m[0];
+  } else if((m=t.match(/[uú]ltima?\s+semana/))){
+    const d=new Date(now); d.setDate(d.getDate()-7); from=_dqIso(d); to=_dqIso(now); matched=m[0];
+  } else if((m=t.match(/[uú]ltim[oa]s?\s+(\d+)\s+(?:semanas|meses)/))){
+    const n=parseInt(m[1]); const d=new Date(now);
+    if(/meses/.test(m[0])) d.setMonth(d.getMonth()-n); else d.setDate(d.getDate()-7*n);
+    from=_dqIso(d); to=_dqIso(now); matched=m[0];
+  } else if((m=t.match(/[uú]ltimo\s+mes/))){
+    const d=new Date(now); d.setMonth(d.getMonth()-1); from=_dqIso(d); to=_dqIso(now); matched=m[0];
+  } else if((m=t.match(new RegExp('del?\\s+(\\d{1,2})\\s+al\\s+(\\d{1,2})\\s+de\\s+('+mNames+')(?:\\s+de\\s+(\\d{4}))?')))){
+    const mo=_DQ_MONTHS[m[3]]; const yr=m[4]?parseInt(m[4]):now.getFullYear();
+    from=_dqIso(new Date(yr,mo,parseInt(m[1]))); to=_dqIso(new Date(yr,mo,parseInt(m[2]))); matched=m[0];
+  } else if((m=t.match(new RegExp('\\b('+mNames+')\\b(?:\\s+(?:de|del)\\s*)?\\s*(\\d{4})?')))){
+    const mo=_DQ_MONTHS[m[1]]; const yr=m[2]?parseInt(m[2]):now.getFullYear();
+    from=_dqIso(new Date(yr,mo,1)); to=_dqIso(new Date(yr,mo+1,0)); matched=m[0];
+  }
+  // Subject = query minus the date phrase minus common filler/trigger words
+  let subject=text;
+  if(matched) subject=subject.replace(new RegExp(matched,'i'),' ');
+  subject=subject.replace(/\b(todo|todas?|los?|las?|de|del|sobre|acerca|memorias?|reuniones?|qu[eé]|cu[aá]l(?:es)?|mu[eé]strame|dame|busca|encuentra|periodo|durante|en|el|la)\b/gi,' ')
+                 .replace(/\s+/g,' ').trim();
+  return {from,to,subject,hadDate:!!matched};
+}
+// Filters the full in-memory `memories` set by date range and/or subject.
+// Returns ALL matches (no top-k truncation) — the point of deep query.
+function deepFilterMemories({from,to,subject}){
+  const subjTerms=subject?subject.toLowerCase().split(/\s+/).filter(s=>s.length>2):[];
+  return memories.filter(m=>{
+    const meta=m.metadata||{};
+    if(from||to){
+      const ds=meta.date||m.created_at||m.updated_at;
+      if(!ds) return false;
+      const d=ds.split('T')[0];
+      if(from&&d<from) return false;
+      if(to&&d>to) return false;
+    }
+    if(subjTerms.length){
+      const hay=((m.memory||'')+' '+JSON.stringify(meta)).toLowerCase();
+      if(!subjTerms.some(s=>hay.includes(s))) return false;
+    }
+    return true;
+  }).sort((a,b)=>{
+    const da=(a.metadata?.date||a.created_at||''), db=(b.metadata?.date||b.created_at||'');
+    return db.localeCompare(da); // newest first
+  });
 }
 
 async function fetchMemories(limit=100) {
