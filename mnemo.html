@@ -321,7 +321,7 @@
         <option value="claude-sonnet-4-6">Sonnet 4.6</option>
         <option value="claude-opus-4-6">Opus 4.6</option>
       </select>
-      <span class="version-badge" id="version-badge">V68.1</span>
+      <span class="version-badge" id="version-badge">V69.1</span>
       <div class="header-status">
         <div class="status-dot" id="status-dot"></div>
         <span id="status-text">connecting...</span>
@@ -646,7 +646,7 @@ let thinkingEnabled=false;
 let detailEnabled=false;
 let deepQueryEnabled=false;
 let dqFrom=null, dqTo=null;
-const MNEMO_VERSION='V68.1';
+const MNEMO_VERSION='V69.1';
 let gNodes=[], gEdges=[], gDragging=null, gHovered=null, gAnimFrame=null, gSimMaxV=4;
 
 const PRICING = {
@@ -1299,56 +1299,7 @@ function searchLocalMemories(query, limit=12) {
 }
 
 // ── DEEP QUERY (CAMBIO 2) ────────────────────────────────────────────────
-// Parses natural-language period + subject from the user's message.
-// Returns {from, to, subject, hadDate}. Dates are ISO YYYY-MM-DD or null.
-const _DQ_MONTHS={enero:0,febrero:1,marzo:2,abril:3,mayo:4,junio:5,julio:6,agosto:7,septiembre:8,setiembre:8,octubre:9,noviembre:10,diciembre:11};
 function _dqIso(d){return d.toISOString().split('T')[0];}
-function parseDeepQuery(text){
-  const t=text.toLowerCase();
-  const now=new Date();
-  let from=null,to=null,matched='';
-  const mNames=Object.keys(_DQ_MONTHS).join('|');
-  let m;
-  // Explicit "everything" request: no date filter, and the subject is cleared so
-  // it truly spans the entire history (still capped only by the context budget).
-  const allHistory=/\b(todas?\s+(?:mis\s+)?(?:las\s+)?memorias|toda\s+(?:mi\s+)?(?:la\s+)?(?:memoria|informaci[oó]n|historia)|todo\s+(?:el\s+)?historial|sin\s+(?:l[ií]mite|filtro)|memoria\s+completa|historial\s+completo)\b/.test(t);
-  if(allHistory){
-    matched=t.match(/\b(todas?\s+(?:mis\s+)?(?:las\s+)?memorias|toda\s+(?:mi\s+)?(?:la\s+)?(?:memoria|informaci[oó]n|historia)|todo\s+(?:el\s+)?historial|sin\s+(?:l[ií]mite|filtro)|memoria\s+completa|historial\s+completo)\b/)[0];
-  } else if((m=t.match(new RegExp('(?:del?|desde)\\s+(\\d{4}-\\d{2}-\\d{2})\\s+(?:al?|a|hasta)\\s+(\\d{4}-\\d{2}-\\d{2})')))){
-    from=m[1]; to=m[2]; matched=m[0];
-  } else if((m=t.match(/[uú]ltima?s?\s+dos\s+semanas|[uú]ltimas?\s+2\s+semanas/))){
-    const d=new Date(now); d.setDate(d.getDate()-14); from=_dqIso(d); to=_dqIso(now); matched=m[0];
-  } else if((m=t.match(/[uú]ltim[oa]s?\s+(\d+)\s+d[ií]as/))){
-    const d=new Date(now); d.setDate(d.getDate()-parseInt(m[1])); from=_dqIso(d); to=_dqIso(now); matched=m[0];
-  } else if((m=t.match(/[uú]ltima?\s+semana/))){
-    const d=new Date(now); d.setDate(d.getDate()-7); from=_dqIso(d); to=_dqIso(now); matched=m[0];
-  } else if((m=t.match(/[uú]ltim[oa]s?\s+(\d+)\s+(?:semanas|meses)/))){
-    const n=parseInt(m[1]); const d=new Date(now);
-    if(/meses/.test(m[0])) d.setMonth(d.getMonth()-n); else d.setDate(d.getDate()-7*n);
-    from=_dqIso(d); to=_dqIso(now); matched=m[0];
-  } else if((m=t.match(/[uú]ltimo\s+mes/))){
-    const d=new Date(now); d.setMonth(d.getMonth()-1); from=_dqIso(d); to=_dqIso(now); matched=m[0];
-  } else if((m=t.match(/este\s+mes/))){
-    from=_dqIso(new Date(now.getFullYear(),now.getMonth(),1)); to=_dqIso(now); matched=m[0];
-  } else if((m=t.match(/(?:este\s+a[nñ]o)/))){
-    from=_dqIso(new Date(now.getFullYear(),0,1)); to=_dqIso(now); matched=m[0];
-  } else if((m=t.match(/a[nñ]o\s+pasado/))){
-    const y=now.getFullYear()-1; from=_dqIso(new Date(y,0,1)); to=_dqIso(new Date(y,11,31)); matched=m[0];
-  } else if((m=t.match(new RegExp('del?\\s+(\\d{1,2})\\s+al\\s+(\\d{1,2})\\s+de\\s+('+mNames+')(?:\\s+de\\s+(\\d{4}))?')))){
-    const mo=_DQ_MONTHS[m[3]]; const yr=m[4]?parseInt(m[4]):now.getFullYear();
-    from=_dqIso(new Date(yr,mo,parseInt(m[1]))); to=_dqIso(new Date(yr,mo,parseInt(m[2]))); matched=m[0];
-  } else if((m=t.match(new RegExp('\\b('+mNames+')\\b(?:\\s+(?:de|del)\\s*)?\\s*(\\d{4})?')))){
-    const mo=_DQ_MONTHS[m[1]]; const yr=m[2]?parseInt(m[2]):now.getFullYear();
-    from=_dqIso(new Date(yr,mo,1)); to=_dqIso(new Date(yr,mo+1,0)); matched=m[0];
-  }
-  // Subject = query minus the date phrase minus common filler/trigger words.
-  // For an explicit "everything" request the subject stays empty on purpose.
-  let subject=allHistory?'':text;
-  if(matched && !allHistory) subject=subject.replace(new RegExp(matched.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'i'),' ');
-  if(!allHistory) subject=subject.replace(/\b(todo|todas?|los?|las?|de|del|sobre|acerca|memorias?|reuniones?|qu[eé]|cu[aá]l(?:es)?|mu[eé]strame|dame|busca|encuentra|periodo|durante|en|el|la)\b/gi,' ')
-                 .replace(/\s+/g,' ').trim();
-  return {from,to,subject,hadDate:!!(from||to),allHistory};
-}
 // Filters the full in-memory `memories` set by date range and/or subject.
 // Returns ALL matches (no top-k truncation) — the point of deep query.
 function deepFilterMemories({from,to,subject}){
