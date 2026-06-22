@@ -317,11 +317,11 @@
     <div class="header-logo">MNEMO</div>
     <div class="header-right">
       <select class="model-select" id="model-select" onchange="onModelChange()">
-        <option value="claude-haiku-4-5-20251001" selected>Haiku 4.5 (fast)</option>
-        <option value="claude-sonnet-4-6">Sonnet 4.6</option>
-        <option value="claude-opus-4-6">Opus 4.6</option>
+        <option value="claude-sonnet-4-6">Sonnet 4.6 (rápido)</option>
+        <option value="claude-opus-4-8">Opus 4.8 (más capaz)</option>
+        <option value="claude-haiku-4-5-20251001">Haiku 4.5 (económico)</option>
       </select>
-      <span class="version-badge" id="version-badge">V69.1</span>
+      <span class="version-badge" id="version-badge">V35.1</span>
       <div class="header-status">
         <div class="status-dot" id="status-dot"></div>
         <span id="status-text">connecting...</span>
@@ -635,7 +635,7 @@
 <script>
 // ── STATE
 let ANTHROPIC_KEY='', MEM0_KEY='', USER_ID='rene_bartoli', GITHUB_PAT='';
-let chatMessages=[], memories=[], selectedModel='claude-haiku-4-5-20251001', usagePeriod='session';
+let chatMessages=[], memories=[], selectedModel='claude-sonnet-4-6', usagePeriod='session';
 let pendingAttachments=[];
 const MAX_ATTACH_BYTES=8*1024*1024;
 const IMAGE_TYPES=['image/jpeg','image/png','image/gif','image/webp'];
@@ -646,13 +646,13 @@ let thinkingEnabled=false;
 let detailEnabled=false;
 let deepQueryEnabled=false;
 let dqFrom=null, dqTo=null;
-const MNEMO_VERSION='V69.1';
+const MNEMO_VERSION='V35.1';
 let gNodes=[], gEdges=[], gDragging=null, gHovered=null, gAnimFrame=null, gSimMaxV=4;
 
 const PRICING = {
-  'claude-haiku-4-5-20251001':  { in: 1,  out: 5  },
+  'claude-opus-4-8':            { in: 5,  out: 25 },
   'claude-sonnet-4-6':          { in: 3,  out: 15 },
-  'claude-opus-4-6':            { in: 5,  out: 25 }
+  'claude-haiku-4-5-20251001':  { in: 1,  out: 5  }
 };
 const NODE_COLORS = {
   person:  '#a78bfa',   // purple
@@ -678,7 +678,7 @@ try { usageLog = JSON.parse(localStorage.getItem('mnemo_usage')||'[]'); } catch(
 window._sessionStart = Date.now();
 
 function logUsage(model, inTok, outTok) {
-  const p = PRICING[model]||PRICING['claude-haiku-4-5-20251001'];
+  const p = PRICING[model]||PRICING['claude-sonnet-4-6'];
   usageLog.push({ ts: Date.now(), model, inputTokens: inTok, outputTokens: outTok, cost: (inTok/1e6*p.in)+(outTok/1e6*p.out) });
   try { localStorage.setItem('mnemo_usage', JSON.stringify(usageLog.slice(-500))); } catch(e){}
   if (document.getElementById('usage-view').classList.contains('active')) renderUsage();
@@ -708,6 +708,9 @@ window.addEventListener('load',()=>{
   const uid=localStorage.getItem('mnemo_uid')||sessionStorage.getItem('mnemo_uid');
   const pat=localStorage.getItem('mnemo_github_pat')||'';
   if(pat) GITHUB_PAT=pat;
+  const savedModel=localStorage.getItem('mnemo_model')||'claude-sonnet-4-6';
+  selectedModel=savedModel;
+  document.getElementById('model-select').value=savedModel;
   if(ak&&mk){ ANTHROPIC_KEY=ak; MEM0_KEY=mk; USER_ID=uid||'rene_bartoli'; document.getElementById('login-screen').style.display='none'; document.getElementById('app').style.display='flex'; init(); }
   document.getElementById('login-pass').addEventListener('keydown',e=>{ if(e.key==='Enter') doLogin(); });
   setupCanvasEvents();
@@ -729,9 +732,10 @@ function setStatus(state,text) {
 // ── MODEL
 function onModelChange() {
   selectedModel=document.getElementById('model-select').value;
+  localStorage.setItem('mnemo_model',selectedModel);
   appendMsg('system','Model: '+getModelLabel(selectedModel));
 }
-function getModelLabel(m) { return {'claude-haiku-4-5-20251001':'Haiku 4.5','claude-sonnet-4-6':'Sonnet 4.6','claude-opus-4-6':'Opus 4.6'}[m]||m; }
+function getModelLabel(m) { return {'claude-opus-4-8':'Opus 4.8','claude-sonnet-4-6':'Sonnet 4.6','claude-haiku-4-5-20251001':'Haiku 4.5'}[m]||m; }
 function getActualModel(m) { return m; }
 
 // ── TABS
@@ -1388,7 +1392,7 @@ async function extractEntitiesFromText(text){
   try{
     const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
       headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:150,
+      body:JSON.stringify({model:selectedModel,max_tokens:150,
         messages:[{role:'user',content:`Extract from this text:
 1. "people": ONLY real person full names (First Last). Exclude companies, projects, tools, concepts, job titles, places, generic phrases.
 2. "meeting_topic": if this is about a meeting/call/session/workshop, write the actual topic (2-5 words). null if not a meeting.
@@ -1528,14 +1532,14 @@ async function generateSummary(){
     const allMems=await fetchMemories(500);
     const filtered=allMems.filter(m=>{const d=new Date(m.updated_at||m.created_at||'2020-01-01');return d>=new Date(from+'T00:00:00')&&d<=new Date(to+'T23:59:59');}).slice(0,60);
     if(!filtered.length){output.textContent=`No memories between ${from} and ${to}.`;return;}
-    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:800,messages:[{role:'user',content:`Create a clear structured summary of these memories from ${from} to ${to}. Include: key decisions, action items, people mentioned, open topics. Format for pasting as context into Claude.ai.\n\nMemories:\n${filtered.map(m=>`• ${(m.memory||'').substring(0,200)}`).join('\n')}`}]})});
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:selectedModel,max_tokens:800,messages:[{role:'user',content:`Create a clear structured summary of these memories from ${from} to ${to}. Include: key decisions, action items, people mentioned, open topics. Format for pasting as context into Claude.ai.\n\nMemories:\n${filtered.map(m=>`• ${(m.memory||'').substring(0,200)}`).join('\n')}`}]})});
     const data=await res.json();
     const summary=data.content?.filter(b=>b.type==='text').map(b=>b.text).join('')||'';
     output.textContent=`--- MNEMO CONTEXT SUMMARY ---\nPeriod: ${from} → ${to}\nGenerated: ${new Date().toLocaleString()}\n${'─'.repeat(40)}\n\n`+summary;
     document.getElementById('copy-btn').style.display='block';
     localStorage.setItem('mnemo_last_download',new Date().toISOString());
     updateLastDownloadUI();
-    if(data.usage) logUsage('claude-sonnet-4-6',data.usage.input_tokens||0,data.usage.output_tokens||0);
+    if(data.usage) logUsage(selectedModel,data.usage.input_tokens||0,data.usage.output_tokens||0);
   }catch(e){output.textContent=`⚠️ ${e.message}`;}
 }
 function copySummary(){navigator.clipboard.writeText(document.getElementById('summary-output').textContent).then(()=>{const b=document.getElementById('copy-btn');b.textContent='✅ Copied!';setTimeout(()=>b.textContent='📋 Copy',2000);});}
