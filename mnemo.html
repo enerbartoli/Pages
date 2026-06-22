@@ -321,7 +321,7 @@
         <option value="claude-opus-4-8">Opus 4.8 (más capaz)</option>
         <option value="claude-haiku-4-5-20251001">Haiku 4.5 (económico)</option>
       </select>
-      <span class="version-badge" id="version-badge">V35.3</span>
+      <span class="version-badge" id="version-badge">V35.4</span>
       <div class="header-status">
         <div class="status-dot" id="status-dot"></div>
         <span id="status-text">connecting...</span>
@@ -504,7 +504,10 @@
     <div class="admin-content">
       <div class="section-header" style="padding:0;border:none;margin-bottom:2px">
         <h2>⚙ Admin</h2>
-        <button class="icon-btn" style="height:30px;width:30px;font-size:13px" onclick="loadAdmin()">↻</button>
+        <div style="display:flex;gap:6px">
+          <button class="icon-btn" style="height:30px;padding:0 10px;font-size:12px" onclick="configPAT()" title="Actualizar GitHub PAT">🔑 PAT</button>
+          <button class="icon-btn" style="height:30px;width:30px;font-size:13px" onclick="loadAdmin()">↻</button>
+        </div>
       </div>
 
       <!-- S1: Resumen general -->
@@ -647,7 +650,7 @@ let thinkingEnabled=false;
 let detailEnabled=false;
 let deepQueryEnabled=false;
 let dqFrom=null, dqTo=null;
-const MNEMO_VERSION='V35.3';
+const MNEMO_VERSION='V35.4';
 let gNodes=[], gEdges=[], gDragging=null, gHovered=null, gAnimFrame=null, gSimMaxV=4;
 
 const PRICING = {
@@ -2177,11 +2180,15 @@ async function loadAdmin() {
   try {
     const res = await fetch('https://api.github.com/repos/enerbartoli/memory-pipeline/contents/stats.json',
       {headers:{'Authorization':`token ${GITHUB_PAT}`,'Accept':'application/vnd.github.v3.raw'}});
-    if(!res.ok) throw new Error(`GitHub API ${res.status}`);
+    if(!res.ok) {
+      const hints={401:'PAT inválido o expirado — actualizalo con 🔑 PAT',403:'PAT sin scope "repo" — regeneralo en github.com con scope repo+workflow',404:'stats.json no encontrado en el repo'};
+      throw new Error(`GitHub ${res.status}: ${hints[res.status]||res.statusText}`);
+    }
     adminStats = await res.json();
     renderAdmin();
   } catch(e) {
-    document.getElementById('adm-loading').textContent=`⚠ Error: ${e.message}`;
+    document.getElementById('adm-loading').textContent=`⚠ ${e.message}`;
+    document.getElementById('adm-pat-config').style.display='block';
   }
 }
 function renderAdmin() {
