@@ -317,11 +317,11 @@
     <div class="header-logo">MNEMO</div>
     <div class="header-right">
       <select class="model-select" id="model-select" onchange="onModelChange()">
-        <option value="claude-haiku-4-5-20251001" selected>Haiku 4.5 (fast)</option>
-        <option value="claude-sonnet-4-6">Sonnet 4.6</option>
-        <option value="claude-opus-4-6">Opus 4.6</option>
+        <option value="claude-sonnet-4-6">Sonnet 4.6 (rápido)</option>
+        <option value="claude-opus-4-8">Opus 4.8 (más capaz)</option>
+        <option value="claude-haiku-4-5-20251001">Haiku 4.5 (económico)</option>
       </select>
-      <span class="version-badge" id="version-badge">V69.1</span>
+      <span class="version-badge" id="version-badge">V35.3</span>
       <div class="header-status">
         <div class="status-dot" id="status-dot"></div>
         <span id="status-text">connecting...</span>
@@ -635,7 +635,8 @@
 <script>
 // ── STATE
 let ANTHROPIC_KEY='', MEM0_KEY='', USER_ID='rene_bartoli', GITHUB_PAT='';
-let chatMessages=[], memories=[], selectedModel='claude-haiku-4-5-20251001', usagePeriod='session';
+let chatMessages=[], memories=[], selectedModel='claude-sonnet-4-6', usagePeriod='session';
+let micStream=null, audioCtx=null, analyser=null, voiceAnimFrame=null;
 let pendingAttachments=[];
 const MAX_ATTACH_BYTES=8*1024*1024;
 const IMAGE_TYPES=['image/jpeg','image/png','image/gif','image/webp'];
@@ -646,13 +647,13 @@ let thinkingEnabled=false;
 let detailEnabled=false;
 let deepQueryEnabled=false;
 let dqFrom=null, dqTo=null;
-const MNEMO_VERSION='V69.1';
+const MNEMO_VERSION='V35.3';
 let gNodes=[], gEdges=[], gDragging=null, gHovered=null, gAnimFrame=null, gSimMaxV=4;
 
 const PRICING = {
-  'claude-haiku-4-5-20251001':  { in: 1,  out: 5  },
+  'claude-opus-4-8':            { in: 5,  out: 25 },
   'claude-sonnet-4-6':          { in: 3,  out: 15 },
-  'claude-opus-4-6':            { in: 5,  out: 25 }
+  'claude-haiku-4-5-20251001':  { in: 1,  out: 5  }
 };
 const NODE_COLORS = {
   person:  '#a78bfa',   // purple
@@ -678,7 +679,7 @@ try { usageLog = JSON.parse(localStorage.getItem('mnemo_usage')||'[]'); } catch(
 window._sessionStart = Date.now();
 
 function logUsage(model, inTok, outTok) {
-  const p = PRICING[model]||PRICING['claude-haiku-4-5-20251001'];
+  const p = PRICING[model]||PRICING['claude-sonnet-4-6'];
   usageLog.push({ ts: Date.now(), model, inputTokens: inTok, outputTokens: outTok, cost: (inTok/1e6*p.in)+(outTok/1e6*p.out) });
   try { localStorage.setItem('mnemo_usage', JSON.stringify(usageLog.slice(-500))); } catch(e){}
   if (document.getElementById('usage-view').classList.contains('active')) renderUsage();
@@ -708,6 +709,9 @@ window.addEventListener('load',()=>{
   const uid=localStorage.getItem('mnemo_uid')||sessionStorage.getItem('mnemo_uid');
   const pat=localStorage.getItem('mnemo_github_pat')||'';
   if(pat) GITHUB_PAT=pat;
+  const savedModel=localStorage.getItem('mnemo_model')||'claude-sonnet-4-6';
+  selectedModel=savedModel;
+  document.getElementById('model-select').value=savedModel;
   if(ak&&mk){ ANTHROPIC_KEY=ak; MEM0_KEY=mk; USER_ID=uid||'rene_bartoli'; document.getElementById('login-screen').style.display='none'; document.getElementById('app').style.display='flex'; init(); }
   document.getElementById('login-pass').addEventListener('keydown',e=>{ if(e.key==='Enter') doLogin(); });
   setupCanvasEvents();
@@ -729,10 +733,11 @@ function setStatus(state,text) {
 // ── MODEL
 function onModelChange() {
   selectedModel=document.getElementById('model-select').value;
+  localStorage.setItem('mnemo_model',selectedModel);
   appendMsg('system','Model: '+getModelLabel(selectedModel));
 }
-function getModelLabel(m) { return {'claude-haiku-4-5-20251001':'Haiku 4.5','claude-sonnet-4-6':'Sonnet 4.6','claude-opus-4-6':'Opus 4.6'}[m]||m; }
-function getActualModel(m) { return m; }
+function getModelLabel(m) { return {'claude-opus-4-8':'Opus 4.8','claude-sonnet-4-6':'Sonnet 4.6','claude-haiku-4-5-20251001':'Haiku 4.5'}[m]||m; }
+
 
 // ── TABS
 function switchView(view,tab) {
@@ -1256,7 +1261,7 @@ function fmt(t) { return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>
 async function askClaude(msg,ctx) {
   const indicator=document.getElementById('web-indicator'); indicator.textContent='';
   const body={
-    model:getActualModel(selectedModel), max_tokens:thinkingEnabled?8000:detailEnabled?3000:1200,
+    model:selectedModel, max_tokens:thinkingEnabled?8000:detailEnabled?3000:1200,
     system:`You are MNEMO, René's assistant. ${detailEnabled?'Provide complete, well-structured responses. Use headers and bullets when helpful. Do not truncate.':'CRITICAL: Be maximally concise. Answer in 2-4 sentences when possible. Skip preambles and filler. Use bullets only for 3+ items.'} Match the question's language. Reference memory below when directly relevant; ignore otherwise.\n\nMEMORY:\n${ctx}`,
     ...(webSearchEnabled ? {tools:[{type:'web_search_20250305',name:'web_search'}]} : {}),
     messages:[...chatMessages.slice(-5),{role:'user',content:msg}]
@@ -1388,7 +1393,7 @@ async function extractEntitiesFromText(text){
   try{
     const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
       headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:150,
+      body:JSON.stringify({model:selectedModel,max_tokens:150,
         messages:[{role:'user',content:`Extract from this text:
 1. "people": ONLY real person full names (First Last). Exclude companies, projects, tools, concepts, job titles, places, generic phrases.
 2. "meeting_topic": if this is about a meeting/call/session/workshop, write the actual topic (2-5 words). null if not a meeting.
@@ -1416,7 +1421,8 @@ async function saveToMem0(u,a){
     if(entities.people.length>0) meta.people=entities.people;
     if(entities.meeting_topic) meta.meeting_topic=entities.meeting_topic;
     if(Object.keys(meta).length>0) body.metadata=meta;
-    await fetch('https://api.mem0.ai/v1/memories/',{method:'POST',headers:{'Authorization':`Token ${MEM0_KEY}`,'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const memRes=await fetch('https://api.mem0.ai/v1/memories/',{method:'POST',headers:{'Authorization':`Token ${MEM0_KEY}`,'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!memRes.ok) return;
     // Increment count locally — avoid expensive refetch after every message
     const cnt=parseInt(document.getElementById('mem-count').textContent)||0;
     document.getElementById('mem-count').textContent=cnt+1;
@@ -1525,17 +1531,18 @@ async function generateSummary(){
   output.textContent='⏳ Generating...'; output.classList.add('visible'); document.getElementById('copy-btn').style.display='none';
   const{from,to}=getPeriodDates();
   try{
-    const allMems=await fetchMemories(500);
+    const allMems=memories.length>0?memories:await fetchMemories(500);
     const filtered=allMems.filter(m=>{const d=new Date(m.updated_at||m.created_at||'2020-01-01');return d>=new Date(from+'T00:00:00')&&d<=new Date(to+'T23:59:59');}).slice(0,60);
     if(!filtered.length){output.textContent=`No memories between ${from} and ${to}.`;return;}
-    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:800,messages:[{role:'user',content:`Create a clear structured summary of these memories from ${from} to ${to}. Include: key decisions, action items, people mentioned, open topics. Format for pasting as context into Claude.ai.\n\nMemories:\n${filtered.map(m=>`• ${(m.memory||'').substring(0,200)}`).join('\n')}`}]})});
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:selectedModel,max_tokens:800,messages:[{role:'user',content:`Create a clear structured summary of these memories from ${from} to ${to}. Include: key decisions, action items, people mentioned, open topics. Format for pasting as context into Claude.ai.\n\nMemories:\n${filtered.map(m=>`• ${(m.memory||'').substring(0,200)}`).join('\n')}`}]})});
+    if(!res.ok){const e=await res.json();throw new Error(e.error?.message||`API error ${res.status}`);}
     const data=await res.json();
     const summary=data.content?.filter(b=>b.type==='text').map(b=>b.text).join('')||'';
     output.textContent=`--- MNEMO CONTEXT SUMMARY ---\nPeriod: ${from} → ${to}\nGenerated: ${new Date().toLocaleString()}\n${'─'.repeat(40)}\n\n`+summary;
     document.getElementById('copy-btn').style.display='block';
     localStorage.setItem('mnemo_last_download',new Date().toISOString());
     updateLastDownloadUI();
-    if(data.usage) logUsage('claude-sonnet-4-6',data.usage.input_tokens||0,data.usage.output_tokens||0);
+    if(data.usage) logUsage(selectedModel,data.usage.input_tokens||0,data.usage.output_tokens||0);
   }catch(e){output.textContent=`⚠️ ${e.message}`;}
 }
 function copySummary(){navigator.clipboard.writeText(document.getElementById('summary-output').textContent).then(()=>{const b=document.getElementById('copy-btn');b.textContent='✅ Copied!';setTimeout(()=>b.textContent='📋 Copy',2000);});}
@@ -2104,7 +2111,7 @@ function drawGraph(){
 function getNode(x,y){for(let i=gNodes.length-1;i>=0;i--){const n=gNodes[i],dx=n.x-x,dy=n.y-y;if(Math.sqrt(dx*dx+dy*dy)<n.size+8)return n;}return null;}
 function moveHandler(x,y){
   gHovered=getNode(x,y);const tip=document.getElementById('graph-tooltip');
-  if(gHovered){tip.style.display='block';tip.style.left=(x+13)+'px';tip.style.top=(y-6)+'px';tip.innerHTML=`<strong>${gHovered.label}</strong><br><span style="color:var(--text3)">${gHovered.type}</span>`;}
+  if(gHovered){tip.style.display='block';tip.style.left=(x+13)+'px';tip.style.top=(y-6)+'px';tip.innerHTML=`<strong>${esc(gHovered.label)}</strong><br><span style="color:var(--text3)">${esc(gHovered.type)}</span>`;}
   else{tip.style.display='none';}
   if(gDragging){gDragging.x=x;gDragging.y=y;drawGraph();}
 }
@@ -2239,18 +2246,29 @@ function renderAdmin() {
     <div class="err-row"><div class="err-header"><span class="err-pipe">${e.pipeline||'?'}</span><span class="err-time">${relativeTime(e.timestamp)}</span></div><div class="err-msg">${esc(e.message||'')}</div></div>`).join('')
     :'<div style="color:var(--success);font-size:12px">✅ Sin errores recientes</div>';
 }
-async function triggerImport(wf, statusId) {
+async function dispatchWorkflow(wf, inputs, statusId) {
   const el=document.getElementById(statusId);
   if(!GITHUB_PAT){el.innerHTML='⚠ PAT no configurado';return;}
   el.innerHTML='⏳ Disparando workflow…';
   try {
+    const body={ref:'main'};
+    if(inputs&&Object.keys(inputs).length>0) body.inputs=inputs;
     const r=await fetch(`https://api.github.com/repos/enerbartoli/memory-pipeline/actions/workflows/${wf}/dispatches`,
       {method:'POST',headers:{'Authorization':`token ${GITHUB_PAT}`,'Content-Type':'application/json'},
-       body:JSON.stringify({ref:'main'})});
+       body:JSON.stringify(body)});
     if(!r.ok) throw new Error(`${r.status} ${r.statusText}`);
-    el.innerHTML='✅ Workflow disparado — esperando run…';
+    el.innerHTML='✅ Workflow disparado';
     setTimeout(()=>pollWorkflowStatus(wf,statusId),6000);
-  } catch(e){el.innerHTML=`⚠ Error: ${esc(e.message)}`;}
+  } catch(e){el.innerHTML=`⚠ ${esc(e.message)}`;}
+}
+function triggerImport(wf, statusId) { dispatchWorkflow(wf, {}, statusId); }
+function triggerStatsRefresh() { dispatchWorkflow('memory_pipeline.yml', {}, 'stats-refresh-status'); }
+async function triggerRename(apply) {
+  if(apply){
+    const pending=adminStats?.drive?.pending_rename_count??'?';
+    if(!confirm(`Esto renombrará ${pending} archivos en Google Drive de forma definitiva. ¿Continuar?`)) return;
+  }
+  dispatchWorkflow('rename_drive_files.yml',{apply:apply?'true':'false'},'rename-status');
 }
 function configPAT() {
   const pat=prompt('Ingresa tu GitHub PAT.\n\nScopes necesarios:\n• repo — para leer stats.json del repo privado\n• workflow — para disparar workflows desde el Admin tab\n\nGenéralo en: github.com → Settings → Developer settings → Personal access tokens → Tokens (classic)','');
@@ -2261,51 +2279,21 @@ function configPAT() {
     loadAdmin();
   }
 }
-async function triggerRename(apply) {
-  const statusId='rename-status';
-  const el=document.getElementById(statusId);
-  if(!GITHUB_PAT){el.innerHTML='⚠ PAT no configurado';return;}
-  if(apply){
-    const pending=adminStats?.drive?.pending_rename_count??'?';
-    if(!confirm(`Esto renombrará ${pending} archivos en Google Drive de forma definitiva. ¿Continuar?`)) return;
-  }
-  el.innerHTML=apply?'⏳ Disparando rename --apply…':'⏳ Disparando dry-run…';
-  try {
-    const r=await fetch('https://api.github.com/repos/enerbartoli/memory-pipeline/actions/workflows/rename_drive_files.yml/dispatches',
-      {method:'POST',headers:{'Authorization':`token ${GITHUB_PAT}`,'Content-Type':'application/json'},
-       body:JSON.stringify({ref:'main',inputs:{apply:apply?'true':'false'}})});
-    if(!r.ok) throw new Error(`${r.status}`);
-    el.innerHTML='✅ Workflow disparado';
-    setTimeout(()=>pollWorkflowStatus('rename_drive_files.yml',statusId),6000);
-  } catch(e){el.innerHTML=`⚠ ${esc(e.message)}`;}
-}
-async function triggerStatsRefresh() {
-  const el=document.getElementById('stats-refresh-status');
-  if(!GITHUB_PAT){el.innerHTML='⚠ PAT no configurado';return;}
-  el.innerHTML='⏳ Disparando refresh…';
-  try {
-    const r=await fetch('https://api.github.com/repos/enerbartoli/memory-pipeline/actions/workflows/memory_pipeline.yml/dispatches',
-      {method:'POST',headers:{'Authorization':`token ${GITHUB_PAT}`,'Content-Type':'application/json'},
-       body:JSON.stringify({ref:'main'})});
-    if(!r.ok) throw new Error(`${r.status}`);
-    el.innerHTML='✅ Workflow disparado — stats actualizados en ~2 min';
-    setTimeout(()=>pollWorkflowStatus('memory_pipeline.yml','stats-refresh-status'),6000);
-  } catch(e){el.innerHTML=`⚠ ${esc(e.message)}`;}
-}
 async function pollWorkflowStatus(wf, statusId) {
   const el=document.getElementById(statusId);
   if(!el) return;
   try {
     const r=await fetch(`https://api.github.com/repos/enerbartoli/memory-pipeline/actions/workflows/${wf}/runs?per_page=1`,
       {headers:{'Authorization':`token ${GITHUB_PAT}`}});
+    if(!r.ok) throw new Error(`GitHub ${r.status} ${r.statusText}`);
     const data=await r.json();
     const run=data.workflow_runs?.[0];
     if(!run){el.innerHTML='Sin runs encontrados';return;}
-    const link=`<a href="${run.html_url}" target="_blank" style="color:var(--accent2)">↗ Ver run</a>`;
+    const link=`<a href="${esc(run.html_url)}" target="_blank" style="color:var(--accent2)">↗ Ver run</a>`;
     if(run.status==='completed'){
-      el.innerHTML=`${run.conclusion==='success'?'✅':'❌'} ${run.conclusion} ${link}`;
+      el.innerHTML=`${run.conclusion==='success'?'✅':'❌'} ${esc(run.conclusion)} ${link}`;
     } else {
-      el.innerHTML=`🔄 ${run.status}… ${link}`;
+      el.innerHTML=`🔄 ${esc(run.status)}… ${link}`;
       setTimeout(()=>pollWorkflowStatus(wf,statusId),8000);
     }
   } catch(e){el.innerHTML=`⚠ ${esc(e.message)}`;}
