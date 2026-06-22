@@ -321,7 +321,7 @@
         <option value="claude-opus-4-8">Opus 4.8 (más capaz)</option>
         <option value="claude-haiku-4-5-20251001">Haiku 4.5 (económico)</option>
       </select>
-      <span class="version-badge" id="version-badge">V35.2</span>
+      <span class="version-badge" id="version-badge">V35.3</span>
       <div class="header-status">
         <div class="status-dot" id="status-dot"></div>
         <span id="status-text">connecting...</span>
@@ -647,7 +647,7 @@ let thinkingEnabled=false;
 let detailEnabled=false;
 let deepQueryEnabled=false;
 let dqFrom=null, dqTo=null;
-const MNEMO_VERSION='V35.2';
+const MNEMO_VERSION='V35.3';
 let gNodes=[], gEdges=[], gDragging=null, gHovered=null, gAnimFrame=null, gSimMaxV=4;
 
 const PRICING = {
@@ -737,7 +737,7 @@ function onModelChange() {
   appendMsg('system','Model: '+getModelLabel(selectedModel));
 }
 function getModelLabel(m) { return {'claude-opus-4-8':'Opus 4.8','claude-sonnet-4-6':'Sonnet 4.6','claude-haiku-4-5-20251001':'Haiku 4.5'}[m]||m; }
-function getActualModel(m) { return m; }
+
 
 // ── TABS
 function switchView(view,tab) {
@@ -1261,7 +1261,7 @@ function fmt(t) { return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>
 async function askClaude(msg,ctx) {
   const indicator=document.getElementById('web-indicator'); indicator.textContent='';
   const body={
-    model:getActualModel(selectedModel), max_tokens:thinkingEnabled?8000:detailEnabled?3000:1200,
+    model:selectedModel, max_tokens:thinkingEnabled?8000:detailEnabled?3000:1200,
     system:`You are MNEMO, René's assistant. ${detailEnabled?'Provide complete, well-structured responses. Use headers and bullets when helpful. Do not truncate.':'CRITICAL: Be maximally concise. Answer in 2-4 sentences when possible. Skip preambles and filler. Use bullets only for 3+ items.'} Match the question's language. Reference memory below when directly relevant; ignore otherwise.\n\nMEMORY:\n${ctx}`,
     ...(webSearchEnabled ? {tools:[{type:'web_search_20250305',name:'web_search'}]} : {}),
     messages:[...chatMessages.slice(-5),{role:'user',content:msg}]
@@ -2246,18 +2246,29 @@ function renderAdmin() {
     <div class="err-row"><div class="err-header"><span class="err-pipe">${e.pipeline||'?'}</span><span class="err-time">${relativeTime(e.timestamp)}</span></div><div class="err-msg">${esc(e.message||'')}</div></div>`).join('')
     :'<div style="color:var(--success);font-size:12px">✅ Sin errores recientes</div>';
 }
-async function triggerImport(wf, statusId) {
+async function dispatchWorkflow(wf, inputs, statusId) {
   const el=document.getElementById(statusId);
   if(!GITHUB_PAT){el.innerHTML='⚠ PAT no configurado';return;}
   el.innerHTML='⏳ Disparando workflow…';
   try {
+    const body={ref:'main'};
+    if(inputs&&Object.keys(inputs).length>0) body.inputs=inputs;
     const r=await fetch(`https://api.github.com/repos/enerbartoli/memory-pipeline/actions/workflows/${wf}/dispatches`,
       {method:'POST',headers:{'Authorization':`token ${GITHUB_PAT}`,'Content-Type':'application/json'},
-       body:JSON.stringify({ref:'main'})});
+       body:JSON.stringify(body)});
     if(!r.ok) throw new Error(`${r.status} ${r.statusText}`);
-    el.innerHTML='✅ Workflow disparado — esperando run…';
+    el.innerHTML='✅ Workflow disparado';
     setTimeout(()=>pollWorkflowStatus(wf,statusId),6000);
-  } catch(e){el.innerHTML=`⚠ Error: ${esc(e.message)}`;}
+  } catch(e){el.innerHTML=`⚠ ${esc(e.message)}`;}
+}
+function triggerImport(wf, statusId) { dispatchWorkflow(wf, {}, statusId); }
+function triggerStatsRefresh() { dispatchWorkflow('memory_pipeline.yml', {}, 'stats-refresh-status'); }
+async function triggerRename(apply) {
+  if(apply){
+    const pending=adminStats?.drive?.pending_rename_count??'?';
+    if(!confirm(`Esto renombrará ${pending} archivos en Google Drive de forma definitiva. ¿Continuar?`)) return;
+  }
+  dispatchWorkflow('rename_drive_files.yml',{apply:apply?'true':'false'},'rename-status');
 }
 function configPAT() {
   const pat=prompt('Ingresa tu GitHub PAT.\n\nScopes necesarios:\n• repo — para leer stats.json del repo privado\n• workflow — para disparar workflows desde el Admin tab\n\nGenéralo en: github.com → Settings → Developer settings → Personal access tokens → Tokens (classic)','');
@@ -2267,37 +2278,6 @@ function configPAT() {
     document.getElementById('adm-pat-config').style.display='none';
     loadAdmin();
   }
-}
-async function triggerRename(apply) {
-  const statusId='rename-status';
-  const el=document.getElementById(statusId);
-  if(!GITHUB_PAT){el.innerHTML='⚠ PAT no configurado';return;}
-  if(apply){
-    const pending=adminStats?.drive?.pending_rename_count??'?';
-    if(!confirm(`Esto renombrará ${pending} archivos en Google Drive de forma definitiva. ¿Continuar?`)) return;
-  }
-  el.innerHTML=apply?'⏳ Disparando rename --apply…':'⏳ Disparando dry-run…';
-  try {
-    const r=await fetch('https://api.github.com/repos/enerbartoli/memory-pipeline/actions/workflows/rename_drive_files.yml/dispatches',
-      {method:'POST',headers:{'Authorization':`token ${GITHUB_PAT}`,'Content-Type':'application/json'},
-       body:JSON.stringify({ref:'main',inputs:{apply:apply?'true':'false'}})});
-    if(!r.ok) throw new Error(`${r.status}`);
-    el.innerHTML='✅ Workflow disparado';
-    setTimeout(()=>pollWorkflowStatus('rename_drive_files.yml',statusId),6000);
-  } catch(e){el.innerHTML=`⚠ ${esc(e.message)}`;}
-}
-async function triggerStatsRefresh() {
-  const el=document.getElementById('stats-refresh-status');
-  if(!GITHUB_PAT){el.innerHTML='⚠ PAT no configurado';return;}
-  el.innerHTML='⏳ Disparando refresh…';
-  try {
-    const r=await fetch('https://api.github.com/repos/enerbartoli/memory-pipeline/actions/workflows/memory_pipeline.yml/dispatches',
-      {method:'POST',headers:{'Authorization':`token ${GITHUB_PAT}`,'Content-Type':'application/json'},
-       body:JSON.stringify({ref:'main'})});
-    if(!r.ok) throw new Error(`${r.status}`);
-    el.innerHTML='✅ Workflow disparado — stats actualizados en ~2 min';
-    setTimeout(()=>pollWorkflowStatus('memory_pipeline.yml','stats-refresh-status'),6000);
-  } catch(e){el.innerHTML=`⚠ ${esc(e.message)}`;}
 }
 async function pollWorkflowStatus(wf, statusId) {
   const el=document.getElementById(statusId);
@@ -2309,11 +2289,11 @@ async function pollWorkflowStatus(wf, statusId) {
     const data=await r.json();
     const run=data.workflow_runs?.[0];
     if(!run){el.innerHTML='Sin runs encontrados';return;}
-    const link=`<a href="${run.html_url}" target="_blank" style="color:var(--accent2)">↗ Ver run</a>`;
+    const link=`<a href="${esc(run.html_url)}" target="_blank" style="color:var(--accent2)">↗ Ver run</a>`;
     if(run.status==='completed'){
-      el.innerHTML=`${run.conclusion==='success'?'✅':'❌'} ${run.conclusion} ${link}`;
+      el.innerHTML=`${run.conclusion==='success'?'✅':'❌'} ${esc(run.conclusion)} ${link}`;
     } else {
-      el.innerHTML=`🔄 ${run.status}… ${link}`;
+      el.innerHTML=`🔄 ${esc(run.status)}… ${link}`;
       setTimeout(()=>pollWorkflowStatus(wf,statusId),8000);
     }
   } catch(e){el.innerHTML=`⚠ ${esc(e.message)}`;}
