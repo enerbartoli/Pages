@@ -101,6 +101,12 @@
   .retry-btn:hover { background: rgba(248,113,113,0.12); }
   .resuming { color: var(--warn); font-size: 12px; display: inline-flex; align-items: center; gap: 6px; }
   .resuming::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--warn); animation: pulse 1.2s infinite ease-in-out; }
+  #deep-filter-bar { display: none; background: var(--card2); border: 1px solid var(--border); border-radius: 9px; padding: 7px 11px; margin-bottom: 7px; gap: 6px; flex-wrap: wrap; align-items: center; }
+  #deep-filter-bar.visible { display: flex; }
+  .dq-preset { background: transparent; border: 1px solid var(--border); border-radius: 6px; color: var(--text2); cursor: pointer; font-family: inherit; font-size: 11px; padding: 3px 9px; transition: all 0.15s; white-space: nowrap; }
+  .dq-preset.active, .dq-preset:hover { border-color: var(--accent); color: var(--accent2); background: rgba(139,92,246,0.1); }
+  .dq-date-input { background: var(--input); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-family: inherit; font-size: 11px; padding: 3px 7px; }
+  .dq-sep { color: var(--text3); font-size: 11px; }
 
   /* MODAL */
   .modal-overlay { position: fixed; inset: 0; background: rgba(10,10,15,0.85); backdrop-filter: blur(4px); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 14px; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
@@ -315,7 +321,7 @@
         <option value="claude-sonnet-4-6">Sonnet 4.6</option>
         <option value="claude-opus-4-6">Opus 4.6</option>
       </select>
-      <span class="version-badge" id="version-badge">V67.1</span>
+      <span class="version-badge" id="version-badge">V68.1</span>
       <div class="header-status">
         <div class="status-dot" id="status-dot"></div>
         <span id="status-text">connecting...</span>
@@ -363,6 +369,17 @@
           <button class="summary-btn" onclick="openSummary()">📋 Export</button>
         </div>
         <span style="font-size:10px;color:var(--text3)" id="web-indicator"></span>
+      </div>
+      <div id="deep-filter-bar">
+        <span class="dq-sep">🗂 Período:</span>
+        <button class="dq-preset active" id="dq-all" onclick="dqSetPreset('all')">Todo el historial</button>
+        <button class="dq-preset" id="dq-week" onclick="dqSetPreset('week')">Última semana</button>
+        <button class="dq-preset" id="dq-month" onclick="dqSetPreset('month')">Este mes</button>
+        <button class="dq-preset" id="dq-year" onclick="dqSetPreset('year')">Este año</button>
+        <span class="dq-sep">o rango:</span>
+        <input type="date" class="dq-date-input" id="dq-from" onchange="dqSetCustom()">
+        <span class="dq-sep">→</span>
+        <input type="date" class="dq-date-input" id="dq-to" onchange="dqSetCustom()">
       </div>
       <div id="attach-previews"></div>
       <input type="file" id="file-input" multiple hidden
@@ -628,7 +645,8 @@ let webSearchEnabled=false;
 let thinkingEnabled=false;
 let detailEnabled=false;
 let deepQueryEnabled=false;
-const MNEMO_VERSION='V67.1';
+let dqFrom=null, dqTo=null;
+const MNEMO_VERSION='V68.1';
 let gNodes=[], gEdges=[], gDragging=null, gHovered=null, gAnimFrame=null, gSimMaxV=4;
 
 const PRICING = {
@@ -932,7 +950,35 @@ function toggleTTS() {
 function toggleWebSearch() { webSearchEnabled=!webSearchEnabled; document.getElementById('ws-switch').className='toggle-switch'+(webSearchEnabled?' on':''); appendMsg('system', webSearchEnabled ? '🔍 Web search ON' : '🔍 Web search OFF'); }
 function toggleThinking() { thinkingEnabled=!thinkingEnabled; document.getElementById('think-switch').className='toggle-switch'+(thinkingEnabled?' on':''); appendMsg('system', thinkingEnabled ? '🧠 Thinking mode ON — deeper reasoning, higher cost' : '🧠 Thinking mode OFF'); }
 function toggleDetail() { detailEnabled=!detailEnabled; document.getElementById('detail-switch').className='toggle-switch'+(detailEnabled?' on':''); appendMsg('system', detailEnabled ? '📝 Detail mode ON — full responses' : '📝 Detail mode OFF — concise responses'); }
-function toggleDeepQuery() { deepQueryEnabled=!deepQueryEnabled; document.getElementById('deep-switch').className='toggle-switch'+(deepQueryEnabled?' on':''); appendMsg('system', deepQueryEnabled ? '🗂 Consulta profunda ON — recupera TODAS las memorias de un periodo/tema. Ej: "todo lo de junio 2026" o "reuniones de forecast de las últimas dos semanas"' : '🗂 Consulta profunda OFF — recuperación normal por relevancia'); }
+function toggleDeepQuery(){
+  deepQueryEnabled=!deepQueryEnabled;
+  document.getElementById('deep-switch').className='toggle-switch'+(deepQueryEnabled?' on':'');
+  const bar=document.getElementById('deep-filter-bar');
+  if(deepQueryEnabled){
+    bar.classList.add('visible');
+    dqSetPreset('all');
+    appendMsg('system','🗂 Consulta profunda ON — define el período en la barra y escribe tu consulta normalmente.');
+  } else {
+    bar.classList.remove('visible');
+    dqFrom=null; dqTo=null;
+    appendMsg('system','🗂 Consulta profunda OFF — recuperación normal por relevancia');
+  }
+}
+function dqSetPreset(preset){
+  ['all','week','month','year'].forEach(p=>{const el=document.getElementById('dq-'+p);if(el)el.classList.remove('active');});
+  const el=document.getElementById('dq-'+preset); if(el) el.classList.add('active');
+  const now=new Date();
+  const fi=document.getElementById('dq-from'), ti=document.getElementById('dq-to');
+  if(preset==='all'){ dqFrom=null; dqTo=null; fi.value=''; ti.value=''; }
+  else if(preset==='week'){ const d=new Date(now); d.setDate(d.getDate()-7); dqFrom=_dqIso(d); dqTo=_dqIso(now); fi.value=dqFrom; ti.value=dqTo; }
+  else if(preset==='month'){ dqFrom=_dqIso(new Date(now.getFullYear(),now.getMonth(),1)); dqTo=_dqIso(now); fi.value=dqFrom; ti.value=dqTo; }
+  else if(preset==='year'){ dqFrom=_dqIso(new Date(now.getFullYear(),0,1)); dqTo=_dqIso(now); fi.value=dqFrom; ti.value=dqTo; }
+}
+function dqSetCustom(){
+  ['all','week','month','year'].forEach(p=>{const el=document.getElementById('dq-'+p);if(el)el.classList.remove('active');});
+  dqFrom=document.getElementById('dq-from').value||null;
+  dqTo=document.getElementById('dq-to').value||null;
+}
 function speak(text) {
   if (!ttsEnabled || !('speechSynthesis' in window) || !text) return;
   window.speechSynthesis.cancel();
@@ -1025,16 +1071,16 @@ function renderAttachPreviews(){
 const DEEP_BUDGET_CHARS=160000, DEEP_INJECT_CHARS=300;
 function prepareContext(text){
   if(deepQueryEnabled){
-    const filter=parseDeepQuery(text);
+    // Date filter comes from the UI controls (dqFrom/dqTo); subject extracted from query text.
+    const subject=text.replace(/\b(todo|todas?|los?|las?|de|del|sobre|acerca|memorias?|reuniones?|qu[eé]|cu[aá]l(?:es)?|mu[eé]strame|dame|busca|encuentra|periodo|durante|en|el|la)\b/gi,' ').replace(/\s+/g,' ').trim();
+    const filter={from:dqFrom,to:dqTo,subject};
     const matched=deepFilterMemories(filter);
-    const period=(filter.from||filter.to)?`${filter.from||'…'} → ${filter.to||'…'}`:'todo el historial';
-    const subj=filter.subject?` · tema: "${filter.subject}"`:'';
+    const period=(dqFrom||dqTo)?`${dqFrom||'…'} → ${dqTo||'…'}`:'todo el historial';
+    const subj=subject?` · tema: "${subject}"`: '';
     if(!matched.length){
       appendMsg('system',`🗂 Consulta profunda: 0 memorias coinciden (${period}${subj}).`);
       return 'No memories matched the requested period/subject.';
     }
-    // Inject newest-first until the char budget is exhausted. No arbitrary count
-    // cap — the interval scopes the set; the budget only guards the context window.
     const lines=[]; let used=0, included=0;
     for(const m of matched){
       const d=(m.metadata?.date||m.created_at||'').split('T')[0];
@@ -1043,9 +1089,9 @@ function prepareContext(text){
       lines.push(line); used+=line.length+1; included++;
     }
     const more=included<matched.length
-      ? ` — incluí las ${included} más recientes (límite de ventana de contexto); acota el periodo para abarcarlas todas`
+      ? ` — incluí las ${included} más recientes (límite de ventana de contexto); acota el período para abarcarlas todas`
       : '';
-    appendMsg('system',`🗂 Encontré ${matched.length} memorias que coinciden (${period}${subj})${more}.`);
+    appendMsg('system',`🗂 Encontré ${matched.length} memorias (${period}${subj})${more}.`);
     return `Deep query results (${period}${subj}), ${matched.length} matched / ${included} included:\n${lines.join('\n')}`;
   }
   // Default (deep query OFF): ALWAYS include every memory from the last month
