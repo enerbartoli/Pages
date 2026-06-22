@@ -315,7 +315,7 @@
         <option value="claude-sonnet-4-6">Sonnet 4.6</option>
         <option value="claude-opus-4-6">Opus 4.6</option>
       </select>
-      <span class="version-badge" id="version-badge">V65.1</span>
+      <span class="version-badge" id="version-badge">V66.1</span>
       <div class="header-status">
         <div class="status-dot" id="status-dot"></div>
         <span id="status-text">connecting...</span>
@@ -628,7 +628,7 @@ let webSearchEnabled=false;
 let thinkingEnabled=false;
 let detailEnabled=false;
 let deepQueryEnabled=false;
-const MNEMO_VERSION='V65.1';
+const MNEMO_VERSION='V66.1';
 let gNodes=[], gEdges=[], gDragging=null, gHovered=null, gAnimFrame=null, gSimMaxV=4;
 
 const PRICING = {
@@ -1041,7 +1041,7 @@ function prepareContext(text){
     }).join('\n');
     return `Deep query results (${period}${subj}), ${matched.length} total memories${more}:\n${ctx}`;
   }
-  const mems=searchLocalMemories(text,12);
+  const mems=searchLocalMemories(text,30);
   return mems.map(m=>`• ${(m.memory||'').substring(0,200)}`).join('\n')||'No memories yet.';
 }
 
