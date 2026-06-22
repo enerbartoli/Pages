@@ -321,7 +321,7 @@
         <option value="claude-opus-4-8">Opus 4.8 (más capaz)</option>
         <option value="claude-haiku-4-5-20251001">Haiku 4.5 (económico)</option>
       </select>
-      <span class="version-badge" id="version-badge">V35.1</span>
+      <span class="version-badge" id="version-badge">V35.2</span>
       <div class="header-status">
         <div class="status-dot" id="status-dot"></div>
         <span id="status-text">connecting...</span>
@@ -636,6 +636,7 @@
 // ── STATE
 let ANTHROPIC_KEY='', MEM0_KEY='', USER_ID='rene_bartoli', GITHUB_PAT='';
 let chatMessages=[], memories=[], selectedModel='claude-sonnet-4-6', usagePeriod='session';
+let micStream=null, audioCtx=null, analyser=null, voiceAnimFrame=null;
 let pendingAttachments=[];
 const MAX_ATTACH_BYTES=8*1024*1024;
 const IMAGE_TYPES=['image/jpeg','image/png','image/gif','image/webp'];
@@ -646,7 +647,7 @@ let thinkingEnabled=false;
 let detailEnabled=false;
 let deepQueryEnabled=false;
 let dqFrom=null, dqTo=null;
-const MNEMO_VERSION='V35.1';
+const MNEMO_VERSION='V35.2';
 let gNodes=[], gEdges=[], gDragging=null, gHovered=null, gAnimFrame=null, gSimMaxV=4;
 
 const PRICING = {
@@ -1420,7 +1421,8 @@ async function saveToMem0(u,a){
     if(entities.people.length>0) meta.people=entities.people;
     if(entities.meeting_topic) meta.meeting_topic=entities.meeting_topic;
     if(Object.keys(meta).length>0) body.metadata=meta;
-    await fetch('https://api.mem0.ai/v1/memories/',{method:'POST',headers:{'Authorization':`Token ${MEM0_KEY}`,'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const memRes=await fetch('https://api.mem0.ai/v1/memories/',{method:'POST',headers:{'Authorization':`Token ${MEM0_KEY}`,'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!memRes.ok) return;
     // Increment count locally — avoid expensive refetch after every message
     const cnt=parseInt(document.getElementById('mem-count').textContent)||0;
     document.getElementById('mem-count').textContent=cnt+1;
@@ -1529,10 +1531,11 @@ async function generateSummary(){
   output.textContent='⏳ Generating...'; output.classList.add('visible'); document.getElementById('copy-btn').style.display='none';
   const{from,to}=getPeriodDates();
   try{
-    const allMems=await fetchMemories(500);
+    const allMems=memories.length>0?memories:await fetchMemories(500);
     const filtered=allMems.filter(m=>{const d=new Date(m.updated_at||m.created_at||'2020-01-01');return d>=new Date(from+'T00:00:00')&&d<=new Date(to+'T23:59:59');}).slice(0,60);
     if(!filtered.length){output.textContent=`No memories between ${from} and ${to}.`;return;}
     const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:selectedModel,max_tokens:800,messages:[{role:'user',content:`Create a clear structured summary of these memories from ${from} to ${to}. Include: key decisions, action items, people mentioned, open topics. Format for pasting as context into Claude.ai.\n\nMemories:\n${filtered.map(m=>`• ${(m.memory||'').substring(0,200)}`).join('\n')}`}]})});
+    if(!res.ok){const e=await res.json();throw new Error(e.error?.message||`API error ${res.status}`);}
     const data=await res.json();
     const summary=data.content?.filter(b=>b.type==='text').map(b=>b.text).join('')||'';
     output.textContent=`--- MNEMO CONTEXT SUMMARY ---\nPeriod: ${from} → ${to}\nGenerated: ${new Date().toLocaleString()}\n${'─'.repeat(40)}\n\n`+summary;
@@ -2108,7 +2111,7 @@ function drawGraph(){
 function getNode(x,y){for(let i=gNodes.length-1;i>=0;i--){const n=gNodes[i],dx=n.x-x,dy=n.y-y;if(Math.sqrt(dx*dx+dy*dy)<n.size+8)return n;}return null;}
 function moveHandler(x,y){
   gHovered=getNode(x,y);const tip=document.getElementById('graph-tooltip');
-  if(gHovered){tip.style.display='block';tip.style.left=(x+13)+'px';tip.style.top=(y-6)+'px';tip.innerHTML=`<strong>${gHovered.label}</strong><br><span style="color:var(--text3)">${gHovered.type}</span>`;}
+  if(gHovered){tip.style.display='block';tip.style.left=(x+13)+'px';tip.style.top=(y-6)+'px';tip.innerHTML=`<strong>${esc(gHovered.label)}</strong><br><span style="color:var(--text3)">${esc(gHovered.type)}</span>`;}
   else{tip.style.display='none';}
   if(gDragging){gDragging.x=x;gDragging.y=y;drawGraph();}
 }
@@ -2302,6 +2305,7 @@ async function pollWorkflowStatus(wf, statusId) {
   try {
     const r=await fetch(`https://api.github.com/repos/enerbartoli/memory-pipeline/actions/workflows/${wf}/runs?per_page=1`,
       {headers:{'Authorization':`token ${GITHUB_PAT}`}});
+    if(!r.ok) throw new Error(`GitHub ${r.status} ${r.statusText}`);
     const data=await r.json();
     const run=data.workflow_runs?.[0];
     if(!run){el.innerHTML='Sin runs encontrados';return;}
