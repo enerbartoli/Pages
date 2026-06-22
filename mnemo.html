@@ -315,7 +315,7 @@
         <option value="claude-sonnet-4-6">Sonnet 4.6</option>
         <option value="claude-opus-4-6">Opus 4.6</option>
       </select>
-      <span class="version-badge" id="version-badge">V66.1</span>
+      <span class="version-badge" id="version-badge">V67.1</span>
       <div class="header-status">
         <div class="status-dot" id="status-dot"></div>
         <span id="status-text">connecting...</span>
@@ -628,7 +628,7 @@ let webSearchEnabled=false;
 let thinkingEnabled=false;
 let detailEnabled=false;
 let deepQueryEnabled=false;
-const MNEMO_VERSION='V66.1';
+const MNEMO_VERSION='V67.1';
 let gNodes=[], gEdges=[], gDragging=null, gHovered=null, gAnimFrame=null, gSimMaxV=4;
 
 const PRICING = {
@@ -1017,9 +1017,12 @@ function renderAttachPreviews(){
 
 // ── CHAT
 // Build the memory context string for Claude. With deep query OFF this is the
-// default local relevance search (top 12). With it ON, retrieves ALL memories
-// matching the parsed period/subject and injects a truncated summary (~60 max).
-const DEEP_INJECT_MAX=60, DEEP_INJECT_CHARS=200;
+// default local relevance search (top 30). With it ON, the TIME INTERVAL is the
+// limiter, not a fixed count: ALL memories matching the parsed period/subject
+// are injected, newest-first, until a generous context budget is reached
+// (~40K tokens ≈ the only hard limit, the model's 200K window). Saying "todas
+// las memorias" / "todo el historial" injects everything within that budget.
+const DEEP_BUDGET_CHARS=160000, DEEP_INJECT_CHARS=300;
 function prepareContext(text){
   if(deepQueryEnabled){
     const filter=parseDeepQuery(text);
@@ -1030,19 +1033,43 @@ function prepareContext(text){
       appendMsg('system',`🗂 Consulta profunda: 0 memorias coinciden (${period}${subj}).`);
       return 'No memories matched the requested period/subject.';
     }
-    const shown=matched.slice(0,DEEP_INJECT_MAX);
-    const more=matched.length>DEEP_INJECT_MAX
-      ? ` — mostrando resumen de ${DEEP_INJECT_MAX}, hay ${matched.length} en total`
+    // Inject newest-first until the char budget is exhausted. No arbitrary count
+    // cap — the interval scopes the set; the budget only guards the context window.
+    const lines=[]; let used=0, included=0;
+    for(const m of matched){
+      const d=(m.metadata?.date||m.created_at||'').split('T')[0];
+      const line=`• [${d||'s/f'}] ${(m.memory||'').substring(0,DEEP_INJECT_CHARS)}`;
+      if(used+line.length>DEEP_BUDGET_CHARS && included>0) break;
+      lines.push(line); used+=line.length+1; included++;
+    }
+    const more=included<matched.length
+      ? ` — incluí las ${included} más recientes (límite de ventana de contexto); acota el periodo para abarcarlas todas`
       : '';
     appendMsg('system',`🗂 Encontré ${matched.length} memorias que coinciden (${period}${subj})${more}.`);
-    const ctx=shown.map(m=>{
-      const d=(m.metadata?.date||m.created_at||'').split('T')[0];
-      return `• [${d||'s/f'}] ${(m.memory||'').substring(0,DEEP_INJECT_CHARS)}`;
-    }).join('\n');
-    return `Deep query results (${period}${subj}), ${matched.length} total memories${more}:\n${ctx}`;
+    return `Deep query results (${period}${subj}), ${matched.length} matched / ${included} included:\n${lines.join('\n')}`;
   }
-  const mems=searchLocalMemories(text,30);
-  return mems.map(m=>`• ${(m.memory||'').substring(0,200)}`).join('\n')||'No memories yet.';
+  // Default (deep query OFF): ALWAYS include every memory from the last month
+  // (no count cap, regardless of how many), then fill the remaining context
+  // budget with the top relevance matches from older memories so questions about
+  // older topics still surface context.
+  if(!memories.length) return 'No memories yet.';
+  const NORMAL_BUDGET_CHARS=160000;
+  const monthAgo=new Date(); monthAgo.setMonth(monthAgo.getMonth()-1);
+  const since=_dqIso(monthAgo);
+  const _md=m=>((m.metadata&&m.metadata.date)||m.created_at||'').split('T')[0];
+  const recent=memories.filter(m=>{const d=_md(m);return d&&d>=since;})
+                       .sort((a,b)=>_md(b).localeCompare(_md(a)));
+  const seen=new Set(recent.map(m=>m.id));
+  const fmtLine=m=>`• [${_md(m)||'s/f'}] ${(m.memory||'').substring(0,200)}`;
+  const lines=recent.map(fmtLine);
+  let used=lines.reduce((s,l)=>s+l.length+1,0);
+  for(const m of searchLocalMemories(text,30)){
+    if(seen.has(m.id)) continue;
+    const l=fmtLine(m);
+    if(used+l.length>NORMAL_BUDGET_CHARS) break;
+    lines.push(l); used+=l.length+1;
+  }
+  return lines.join('\n')||'No memories yet.';
 }
 
 async function sendMessage() {
@@ -1236,7 +1263,14 @@ function parseDeepQuery(text){
   let from=null,to=null,matched='';
   const mNames=Object.keys(_DQ_MONTHS).join('|');
   let m;
-  if((m=t.match(/[uú]ltima?s?\s+dos\s+semanas|[uú]ltimas?\s+2\s+semanas/))){
+  // Explicit "everything" request: no date filter, and the subject is cleared so
+  // it truly spans the entire history (still capped only by the context budget).
+  const allHistory=/\b(todas?\s+(?:mis\s+)?(?:las\s+)?memorias|toda\s+(?:mi\s+)?(?:la\s+)?(?:memoria|informaci[oó]n|historia)|todo\s+(?:el\s+)?historial|sin\s+(?:l[ií]mite|filtro)|memoria\s+completa|historial\s+completo)\b/.test(t);
+  if(allHistory){
+    matched=t.match(/\b(todas?\s+(?:mis\s+)?(?:las\s+)?memorias|toda\s+(?:mi\s+)?(?:la\s+)?(?:memoria|informaci[oó]n|historia)|todo\s+(?:el\s+)?historial|sin\s+(?:l[ií]mite|filtro)|memoria\s+completa|historial\s+completo)\b/)[0];
+  } else if((m=t.match(new RegExp('(?:del?|desde)\\s+(\\d{4}-\\d{2}-\\d{2})\\s+(?:al?|a|hasta)\\s+(\\d{4}-\\d{2}-\\d{2})')))){
+    from=m[1]; to=m[2]; matched=m[0];
+  } else if((m=t.match(/[uú]ltima?s?\s+dos\s+semanas|[uú]ltimas?\s+2\s+semanas/))){
     const d=new Date(now); d.setDate(d.getDate()-14); from=_dqIso(d); to=_dqIso(now); matched=m[0];
   } else if((m=t.match(/[uú]ltim[oa]s?\s+(\d+)\s+d[ií]as/))){
     const d=new Date(now); d.setDate(d.getDate()-parseInt(m[1])); from=_dqIso(d); to=_dqIso(now); matched=m[0];
@@ -1248,6 +1282,12 @@ function parseDeepQuery(text){
     from=_dqIso(d); to=_dqIso(now); matched=m[0];
   } else if((m=t.match(/[uú]ltimo\s+mes/))){
     const d=new Date(now); d.setMonth(d.getMonth()-1); from=_dqIso(d); to=_dqIso(now); matched=m[0];
+  } else if((m=t.match(/este\s+mes/))){
+    from=_dqIso(new Date(now.getFullYear(),now.getMonth(),1)); to=_dqIso(now); matched=m[0];
+  } else if((m=t.match(/(?:este\s+a[nñ]o)/))){
+    from=_dqIso(new Date(now.getFullYear(),0,1)); to=_dqIso(now); matched=m[0];
+  } else if((m=t.match(/a[nñ]o\s+pasado/))){
+    const y=now.getFullYear()-1; from=_dqIso(new Date(y,0,1)); to=_dqIso(new Date(y,11,31)); matched=m[0];
   } else if((m=t.match(new RegExp('del?\\s+(\\d{1,2})\\s+al\\s+(\\d{1,2})\\s+de\\s+('+mNames+')(?:\\s+de\\s+(\\d{4}))?')))){
     const mo=_DQ_MONTHS[m[3]]; const yr=m[4]?parseInt(m[4]):now.getFullYear();
     from=_dqIso(new Date(yr,mo,parseInt(m[1]))); to=_dqIso(new Date(yr,mo,parseInt(m[2]))); matched=m[0];
@@ -1255,12 +1295,13 @@ function parseDeepQuery(text){
     const mo=_DQ_MONTHS[m[1]]; const yr=m[2]?parseInt(m[2]):now.getFullYear();
     from=_dqIso(new Date(yr,mo,1)); to=_dqIso(new Date(yr,mo+1,0)); matched=m[0];
   }
-  // Subject = query minus the date phrase minus common filler/trigger words
-  let subject=text;
-  if(matched) subject=subject.replace(new RegExp(matched,'i'),' ');
-  subject=subject.replace(/\b(todo|todas?|los?|las?|de|del|sobre|acerca|memorias?|reuniones?|qu[eé]|cu[aá]l(?:es)?|mu[eé]strame|dame|busca|encuentra|periodo|durante|en|el|la)\b/gi,' ')
+  // Subject = query minus the date phrase minus common filler/trigger words.
+  // For an explicit "everything" request the subject stays empty on purpose.
+  let subject=allHistory?'':text;
+  if(matched && !allHistory) subject=subject.replace(new RegExp(matched.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'i'),' ');
+  if(!allHistory) subject=subject.replace(/\b(todo|todas?|los?|las?|de|del|sobre|acerca|memorias?|reuniones?|qu[eé]|cu[aá]l(?:es)?|mu[eé]strame|dame|busca|encuentra|periodo|durante|en|el|la)\b/gi,' ')
                  .replace(/\s+/g,' ').trim();
-  return {from,to,subject,hadDate:!!matched};
+  return {from,to,subject,hadDate:!!(from||to),allHistory};
 }
 // Filters the full in-memory `memories` set by date range and/or subject.
 // Returns ALL matches (no top-k truncation) — the point of deep query.
