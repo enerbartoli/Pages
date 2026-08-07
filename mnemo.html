@@ -300,14 +300,20 @@
 <div id="login-screen">
   <div class="login-logo">MNEMO</div>
   <div class="login-card">
-    <h2>Welcome back</h2>
+    <h2 id="login-title">Welcome back</h2>
     <div class="field"><label>Password</label><input type="password" id="login-pass" placeholder="Enter password"></div>
-    <div class="field"><label>Anthropic API Key</label><input type="password" id="login-anthropic" placeholder="sk-ant-..."></div>
-    <div class="field"><label>Mem0 API Key</label><input type="password" id="login-mem0" placeholder="m0-..."></div>
-    <div class="field"><label>Mem0 User ID</label><input type="text" id="login-userid" value="rene_bartoli"></div>
-    <div class="field"><label>GitHub PAT <span style="color:var(--text3);font-weight:400">(opcional, para pestaña Admin)</span></label><input type="password" id="login-github-pat" placeholder="ghp_..."></div>
-    <div id="login-error">Incorrect password</div>
-    <button class="btn-primary" onclick="doLogin()">Enter MNEMO</button>
+    <div id="setup-fields" style="display:none;flex-direction:column;gap:13px">
+      <div class="field"><label>Confirm password</label><input type="password" id="login-pass-confirm" placeholder="Repeat password"></div>
+      <div class="field"><label>Anthropic API Key</label><input type="password" id="login-anthropic" placeholder="sk-ant-..."></div>
+      <div class="field"><label>Mem0 API Key</label><input type="password" id="login-mem0" placeholder="m0-..."></div>
+      <div class="field"><label>Mem0 User ID</label><input type="text" id="login-userid" value="rene_bartoli"></div>
+      <div class="field"><label>GitHub PAT <span style="color:var(--text3);font-weight:400">(contents:write en Pages)</span></label><input type="password" id="login-github-pat" placeholder="ghp_..."></div>
+      <div style="font-size:11px;color:var(--text3);line-height:1.5">Los tokens se cifran con tu contraseña (AES-GCM + PBKDF2) y se guardan en <code style="background:var(--surface2);padding:1px 4px;border-radius:3px">mnemo-secrets.enc.json</code> de este repo. El PAT sólo se usa para escribir; no queda guardado.</div>
+    </div>
+    <div id="login-error"></div>
+    <button class="btn-primary" id="login-btn" onclick="doLogin()">Unlock</button>
+    <button type="button" id="toggle-setup-btn" onclick="toggleSetupMode()"
+      style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;text-align:center;padding:0">Configure tokens →</button>
   </div>
 </div>
 
@@ -505,6 +511,7 @@
       <div class="section-header" style="padding:0;border:none;margin-bottom:2px">
         <h2>⚙ Admin</h2>
         <div style="display:flex;gap:6px">
+          <button class="icon-btn" style="height:30px;padding:0 10px;font-size:12px" onclick="rotateSecrets()" title="Rotar tokens cifrados">🔐 Rotate</button>
           <button class="icon-btn" style="height:30px;padding:0 10px;font-size:12px" onclick="configPAT()" title="Actualizar GitHub PAT">🔑 PAT</button>
           <button class="icon-btn" style="height:30px;width:30px;font-size:13px" onclick="loadAdmin()">↻</button>
         </div>
@@ -688,36 +695,136 @@ function logUsage(model, inTok, outTok) {
   if (document.getElementById('usage-view').classList.contains('active')) renderUsage();
 }
 
+// ── SECRETS (encrypted at rest)
+const SECRETS_RAW_URL='https://raw.githubusercontent.com/enerbartoli/Pages/main/mnemo-secrets.enc.json';
+const SECRETS_API_URL='https://api.github.com/repos/enerbartoli/Pages/contents/mnemo-secrets.enc.json';
+let cachedBlob=null, setupMode=false;
+
+function b64ToBuf(b64){const s=atob(b64);const b=new Uint8Array(s.length);for(let i=0;i<s.length;i++)b[i]=s.charCodeAt(i);return b.buffer;}
+function bufToB64(buf){const b=new Uint8Array(buf);let s='';for(let i=0;i<b.length;i++)s+=String.fromCharCode(b[i]);return btoa(s);}
+async function deriveKey(password,saltBuf){
+  const enc=new TextEncoder();
+  const km=await crypto.subtle.importKey('raw',enc.encode(password),{name:'PBKDF2'},false,['deriveKey']);
+  return crypto.subtle.deriveKey({name:'PBKDF2',salt:saltBuf,iterations:250000,hash:'SHA-256'},km,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
+}
+async function encryptSecrets(secrets,password){
+  const salt=crypto.getRandomValues(new Uint8Array(16));
+  const iv=crypto.getRandomValues(new Uint8Array(12));
+  const key=await deriveKey(password,salt.buffer);
+  const pt=new TextEncoder().encode(JSON.stringify(secrets));
+  const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,pt);
+  return{v:1,alg:'AES-GCM',kdf:'PBKDF2-SHA256',iter:250000,salt:bufToB64(salt),iv:bufToB64(iv),ct:bufToB64(ct)};
+}
+async function decryptBlob(blob,password){
+  const key=await deriveKey(password,b64ToBuf(blob.salt));
+  const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:b64ToBuf(blob.iv)},key,b64ToBuf(blob.ct));
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+async function fetchSecretsBlob(){
+  try{
+    const res=await fetch(SECRETS_RAW_URL+'?_='+Date.now(),{cache:'no-store'});
+    if(!res.ok) return null;
+    return await res.json();
+  }catch{ return null; }
+}
+async function uploadSecrets(blob,pat){
+  let sha;
+  const head=await fetch(SECRETS_API_URL,{headers:{'Authorization':`token ${pat}`,'Accept':'application/vnd.github.v3+json'}});
+  if(head.ok) sha=(await head.json()).sha;
+  else if(head.status!==404){ const e=await head.json().catch(()=>({})); throw new Error(e.message||`GitHub ${head.status}`); }
+  const body={message:'Update mnemo secrets',content:bufToB64(new TextEncoder().encode(JSON.stringify(blob,null,2))),...(sha?{sha}:{})};
+  const res=await fetch(SECRETS_API_URL,{method:'PUT',headers:{'Authorization':`token ${pat}`,'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(!res.ok){ const e=await res.json().catch(()=>({})); throw new Error(e.message||`GitHub write failed (${res.status})`); }
+}
+
 // ── LOGIN
-function doLogin() {
+function showLoginError(msg){
+  const el=document.getElementById('login-error');
+  el.textContent=msg; el.style.display=msg?'block':'none';
+}
+function toggleSetupMode(){
+  setupMode=!setupMode;
+  document.getElementById('setup-fields').style.display=setupMode?'flex':'none';
+  document.getElementById('toggle-setup-btn').textContent=setupMode?'← Back to unlock':'Configure tokens →';
+  document.getElementById('login-title').textContent=setupMode?(cachedBlob?'Rotate secrets':'First-time setup'):'Welcome back';
+  document.getElementById('login-btn').textContent=setupMode?'Save & unlock':'Unlock';
+  showLoginError('');
+}
+async function doLogin(){
+  showLoginError('');
   const pass=document.getElementById('login-pass').value;
-  const ak=document.getElementById('login-anthropic').value.trim();
-  const mk=document.getElementById('login-mem0').value.trim();
-  const uid=document.getElementById('login-userid').value.trim();
-  const pat=document.getElementById('login-github-pat').value.trim();
-  if(pass!=='Cati1618-'){ document.getElementById('login-error').style.display='block'; return; }
-  if(!ak||!mk){ alert('Please enter API keys.'); return; }
-  ANTHROPIC_KEY=ak; MEM0_KEY=mk; USER_ID=uid||'rene_bartoli'; GITHUB_PAT=pat;
-  localStorage.setItem('mnemo_ak',ak); localStorage.setItem('mnemo_mk',mk); localStorage.setItem('mnemo_uid',USER_ID);
-  if(pat) localStorage.setItem('mnemo_github_pat',pat);
+  if(!pass){ showLoginError('Password required'); return; }
+  const btn=document.getElementById('login-btn'); btn.disabled=true; const orig=btn.textContent; btn.textContent='Working...';
+  try{
+    if(setupMode){
+      const confirm=document.getElementById('login-pass-confirm').value;
+      if(pass!==confirm){ showLoginError('Passwords do not match'); return; }
+      if(pass.length<8){ showLoginError('Password must be at least 8 characters'); return; }
+      const ak=document.getElementById('login-anthropic').value.trim();
+      const mk=document.getElementById('login-mem0').value.trim();
+      const uid=document.getElementById('login-userid').value.trim()||'rene_bartoli';
+      const pat=document.getElementById('login-github-pat').value.trim();
+      if(!ak||!mk||!pat){ showLoginError('Anthropic key, Mem0 key and PAT are required'); return; }
+      const blob=await encryptSecrets({ak,mk,uid},pass);
+      await uploadSecrets(blob,pat);
+      cachedBlob=blob;
+      unlock({ak,mk,uid});
+    } else {
+      const blob=cachedBlob||await fetchSecretsBlob();
+      if(!blob){ showLoginError('No secrets file yet — tap "Configure tokens"'); return; }
+      cachedBlob=blob;
+      let secrets;
+      try{ secrets=await decryptBlob(blob,pass); }
+      catch{ showLoginError('Incorrect password'); return; }
+      unlock(secrets);
+    }
+  }catch(e){ showLoginError(e.message||String(e)); }
+  finally{ btn.disabled=false; btn.textContent=orig; }
+}
+function rotateSecrets(){
+  if(!confirm('Cerrar sesión y volver a configurar los tokens cifrados?')) return;
+  sessionStorage.removeItem('mnemo_ak'); sessionStorage.removeItem('mnemo_mk'); sessionStorage.removeItem('mnemo_uid');
+  localStorage.removeItem('mnemo_ak'); localStorage.removeItem('mnemo_mk'); localStorage.removeItem('mnemo_uid');
+  location.reload();
+}
+function unlock({ak,mk,uid}){
+  ANTHROPIC_KEY=ak; MEM0_KEY=mk; USER_ID=uid||'rene_bartoli';
+  sessionStorage.setItem('mnemo_ak',ak); sessionStorage.setItem('mnemo_mk',mk); sessionStorage.setItem('mnemo_uid',USER_ID);
   document.getElementById('login-screen').style.display='none';
   document.getElementById('app').style.display='flex';
   init();
 }
 
-window.addEventListener('load',()=>{
-  // Read from localStorage first (persistent), fall back to sessionStorage (legacy users)
-  const ak=localStorage.getItem('mnemo_ak')||sessionStorage.getItem('mnemo_ak');
-  const mk=localStorage.getItem('mnemo_mk')||sessionStorage.getItem('mnemo_mk');
-  const uid=localStorage.getItem('mnemo_uid')||sessionStorage.getItem('mnemo_uid');
-  const pat=localStorage.getItem('mnemo_github_pat')||'';
-  if(pat) GITHUB_PAT=pat;
+window.addEventListener('load',async()=>{
   const savedModel=localStorage.getItem('mnemo_model')||'claude-sonnet-4-6';
   selectedModel=savedModel;
   document.getElementById('model-select').value=savedModel;
-  if(ak&&mk){ ANTHROPIC_KEY=ak; MEM0_KEY=mk; USER_ID=uid||'rene_bartoli'; document.getElementById('login-screen').style.display='none'; document.getElementById('app').style.display='flex'; init(); }
-  document.getElementById('login-pass').addEventListener('keydown',e=>{ if(e.key==='Enter') doLogin(); });
+  const patLegacy=localStorage.getItem('mnemo_github_pat')||'';
+  if(patLegacy) GITHUB_PAT=patLegacy;
   setupCanvasEvents();
+  document.getElementById('login-pass').addEventListener('keydown',e=>{ if(e.key==='Enter') doLogin(); });
+
+  // Session cache: same tab reload skips password
+  const ak=sessionStorage.getItem('mnemo_ak'), mk=sessionStorage.getItem('mnemo_mk'), uid=sessionStorage.getItem('mnemo_uid');
+  if(ak&&mk){
+    ANTHROPIC_KEY=ak; MEM0_KEY=mk; USER_ID=uid||'rene_bartoli';
+    document.getElementById('login-screen').style.display='none';
+    document.getElementById('app').style.display='flex';
+    init();
+    return;
+  }
+  // Legacy: users with old localStorage-based tokens keep working.
+  const lAk=localStorage.getItem('mnemo_ak'), lMk=localStorage.getItem('mnemo_mk');
+  if(lAk&&lMk){
+    ANTHROPIC_KEY=lAk; MEM0_KEY=lMk; USER_ID=localStorage.getItem('mnemo_uid')||'rene_bartoli';
+    document.getElementById('login-screen').style.display='none';
+    document.getElementById('app').style.display='flex';
+    init();
+    return;
+  }
+  // Fresh session → prefetch blob, decide setup vs normal
+  cachedBlob=await fetchSecretsBlob();
+  if(!cachedBlob) toggleSetupMode();
 });
 
 // ── INIT
