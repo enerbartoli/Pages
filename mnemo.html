@@ -303,6 +303,7 @@
     <h2 id="login-title">Welcome back</h2>
     <div class="field"><label>Password</label><input type="password" id="login-pass" placeholder="Enter password"></div>
     <div id="setup-fields" style="display:none;flex-direction:column;gap:13px">
+      <div class="field"><label>Confirm password</label><input type="password" id="login-pass-confirm" placeholder="Repeat password"></div>
       <div class="field"><label>Anthropic API Key</label><input type="password" id="login-anthropic" placeholder="sk-ant-..."></div>
       <div class="field"><label>Mem0 API Key</label><input type="password" id="login-mem0" placeholder="m0-..."></div>
       <div class="field"><label>Mem0 User ID</label><input type="text" id="login-userid" value="rene_bartoli"></div>
@@ -756,6 +757,9 @@ async function doLogin(){
   const btn=document.getElementById('login-btn'); btn.disabled=true; const orig=btn.textContent; btn.textContent='Working...';
   try{
     if(setupMode){
+      const confirm=document.getElementById('login-pass-confirm').value;
+      if(pass!==confirm){ showLoginError('Passwords do not match'); return; }
+      if(pass.length<8){ showLoginError('Password must be at least 8 characters'); return; }
       const ak=document.getElementById('login-anthropic').value.trim();
       const mk=document.getElementById('login-mem0').value.trim();
       const uid=document.getElementById('login-userid').value.trim()||'rene_bartoli';
