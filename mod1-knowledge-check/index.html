@@ -20,14 +20,62 @@
          padding:14px 26px; border-radius:8px; font-size:16px; }
   .btn:hover, .btn:focus { background:var(--navy); }
   .note { margin:22px 0 0; font-size:13px; color:var(--muted); word-break:break-all; }
+  .vpn-note { margin:0 0 24px; padding:12px 14px; border-left:4px solid #F0A500; background:rgba(240,165,0,.12);
+              border-radius:6px; text-align:left; font-size:15px; line-height:1.5; }
+  .vpn-modal { position:fixed; inset:0; z-index:1000; display:none; align-items:center; justify-content:center;
+               padding:16px; background:rgba(0,20,45,.6); }
+  .vpn-modal.is-open { display:flex; }
+  .vpn-modal__box { max-width:460px; width:100%; background:#fff; color:#1d2433; border-radius:12px;
+                    padding:28px 24px; text-align:left; border-top:6px solid #F0A500;
+                    box-shadow:0 16px 40px rgba(0,0,0,.35); font-family:Arial,"Helvetica Neue",Helvetica,system-ui,sans-serif; }
+  .vpn-modal__icon { font-size:30px; line-height:1; margin:0 0 10px; }
+  .vpn-modal__title { margin:0 0 12px; font-size:21px; font-weight:bold; color:#003C77; }
+  .vpn-modal__text { margin:0 0 20px; font-size:15px; line-height:1.55; }
+  .vpn-modal__actions { display:flex; flex-wrap:wrap; gap:10px; justify-content:flex-end; }
+  .vpn-modal__btn { border:0; border-radius:8px; padding:12px 18px; font-size:15px; font-weight:bold; cursor:pointer; font-family:inherit; }
+  .vpn-modal__btn--go { background:#005EB8; color:#fff; }
+  .vpn-modal__btn--go:hover, .vpn-modal__btn--go:focus { background:#003C77; }
+  .vpn-modal__btn--cancel { background:#e7ecf3; color:#1d2433; }
 </style>
 </head>
 <body>
 <main>
   <h1>This site has moved</h1>
   <p>The HERO User Manual and its training resources now live on the new HERO Enablement site. Please update your bookmarks to the new address, then use the button below to continue.</p>
+  <p class="vpn-note"><strong>Before you continue:</strong> the new HERO Enablement site is only available on the Hasbro network. Connect to the Hasbro VPN or to the Hasbro office network first.</p>
   <a class="btn" href="https://hero-enablement.apps.ai-dev.tiamat.cloud">Go to the HERO Enablement site →</a>
   <p class="note">New address: https://hero-enablement.apps.ai-dev.tiamat.cloud</p>
 </main>
+<div class="vpn-modal" id="vpn-modal" role="dialog" aria-modal="true" aria-labelledby="vpn-modal-title" aria-describedby="vpn-modal-text">
+  <div class="vpn-modal__box">
+    <p class="vpn-modal__icon" aria-hidden="true">🔒</p>
+    <p class="vpn-modal__title" id="vpn-modal-title">Connect to the Hasbro network first</p>
+    <p class="vpn-modal__text" id="vpn-modal-text">The HERO Enablement site, including the HERO User Manual and its training resources, can only be opened from the Hasbro network. Before you continue, make sure you are connected to the Hasbro VPN or to the Hasbro office network. If the page does not load, check your connection and try again.</p>
+    <div class="vpn-modal__actions">
+      <button type="button" class="vpn-modal__btn vpn-modal__btn--cancel" id="vpn-modal-cancel">Cancel</button>
+      <button type="button" class="vpn-modal__btn vpn-modal__btn--go" id="vpn-modal-go">I'm connected — continue →</button>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  var NEW_URL = "https://hero-enablement.apps.ai-dev.tiamat.cloud";
+  var modal = document.getElementById("vpn-modal");
+  if (!modal) return;
+  var lastFocus = null;
+  function open() { lastFocus = document.activeElement; modal.classList.add("is-open"); document.getElementById("vpn-modal-go").focus(); }
+  function close() { modal.classList.remove("is-open"); if (lastFocus && lastFocus.focus) lastFocus.focus(); }
+  document.addEventListener("click", function (e) {
+    var a = e.target.closest && e.target.closest("a[href^='" + NEW_URL + "']");
+    if (!a) return;
+    e.preventDefault(); e.stopPropagation();
+    open();
+  }, true);
+  document.getElementById("vpn-modal-go").addEventListener("click", function () { window.location.href = NEW_URL; });
+  document.getElementById("vpn-modal-cancel").addEventListener("click", close);
+  modal.addEventListener("click", function (e) { if (e.target === modal) close(); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && modal.classList.contains("is-open")) close(); });
+})();
+</script>
 </body>
 </html>
